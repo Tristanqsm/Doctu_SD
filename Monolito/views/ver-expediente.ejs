@@ -1,0 +1,126 @@
+<%- include('partials/header') %>
+
+  <div style="max-width: 800px; margin: 1rem auto;">
+    <div class="no-print"
+      style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <div>
+        <% if (user.rol==='medico' ) { %>
+          <a href="/dashboard-medico" class="btn btn-outline btn-sm">← Volver al Panel</a>
+          <% } else { %>
+            <a href="/portal-paciente" class="btn btn-outline btn-sm">← Volver a Mis Expedientes</a>
+            <% } %>
+      </div>
+      <div>
+        <button onclick="alert('Función de impresión no disponible en este prototipo'); return false;"
+          class="btn btn-primary btn-sm">
+          Imprimir / Guardar en PDF
+        </button>
+      </div>
+    </div>
+
+    <div class="receta-box">
+      <!-- Encabezado de la Receta / Expediente -->
+      <div class="receta-header">
+        <div>
+          <h2 style="color: var(--primary); margin-bottom: 2px;">DOCTU · NOTA MÉDICA</h2>
+          <p style="font-size: 0.85rem; color: var(--text-muted);">Expediente Clínico #<%= expediente.id %>
+          </p>
+        </div>
+        <div style="text-align: right; font-size: 0.88rem;">
+          <strong>
+            <%= expediente.medico_nombre %>
+          </strong><br>
+          <%= expediente.medico_especialidad %><br>
+            <span style="color: var(--text-muted);">Cédula Prof: <%= expediente.medico_cedula || 'En trámite' %>
+            </span><br>
+            <strong>Fecha:</strong>
+            <%= expediente.fecha %>
+        </div>
+      </div>
+
+      <!-- Datos del Paciente -->
+      <div
+        style="background: #ffffff; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; font-size: 0.9rem;">
+          <div><strong>Paciente:</strong>
+            <%= expediente.paciente_nombre %>
+          </div>
+          <div><strong>CURP:</strong>
+            <%= expediente.paciente_curp || 'No registrada' %>
+          </div>
+          <div><strong>Teléfono:</strong>
+            <%= expediente.paciente_telefono || 'No registrado' %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Signos Vitales -->
+      <% if (expediente.presion_arterial || expediente.temperatura_c || expediente.peso_kg || expediente.talla_cm) { %>
+        <div class="receta-vitals">
+          <div><strong>Presión:</strong>
+            <%= expediente.presion_arterial || 'N/A' %> mmHg
+          </div>
+          <div><strong>Temperatura:</strong>
+            <%= expediente.temperatura_c ? expediente.temperatura_c + ' °C' : 'N/A' %>
+          </div>
+          <div><strong>Peso:</strong>
+            <%= expediente.peso_kg ? expediente.peso_kg + ' kg' : 'N/A' %>
+          </div>
+          <div><strong>Talla:</strong>
+            <%= expediente.talla_cm ? expediente.talla_cm + ' cm' : 'N/A' %>
+          </div>
+        </div>
+        <% } %>
+
+          <!-- Diagnóstico y Motivo -->
+          <div class="receta-body">
+            <div style="margin-bottom: 1.25rem;">
+              <span
+                style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Motivo
+                de Consulta:</span>
+              <p style="font-size: 0.95rem; margin-top: 2px;">
+                <%= expediente.motivo_consulta %>
+              </p>
+            </div>
+
+            <div
+              style="margin-bottom: 1.5rem; padding: 0.5rem 0.75rem; background: #faf8ff; border-left: 3px solid var(--primary);">
+              <span
+                style="font-size: 0.78rem; text-transform: uppercase; color: var(--primary); font-weight: 700;">Diagnóstico:</span>
+              <p style="font-size: 1.05rem; font-weight: 600; color: #1a202c; margin-top: 2px;">
+                <%= expediente.diagnostico %>
+              </p>
+            </div>
+
+            <!-- Receta Médica / Tratamiento -->
+            <div style="border-top: 1px dashed var(--border-color); padding-top: 1.25rem; margin-bottom: 1.5rem;">
+              <h4 style="color: var(--primary); font-size: 1rem; margin-bottom: 0.5rem;">Rx · Tratamiento y Prescripción
+                Médica:</h4>
+              <div
+                style="background: #ffffff; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 4px; white-space: pre-line; font-size: 0.95rem; line-height: 1.6;">
+                <%= expediente.tratamiento_receta %>
+              </div>
+            </div>
+
+            <!-- Notas adicionales -->
+            <% if (expediente.notas) { %>
+              <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem;">
+                <strong>Observaciones Clínicas:</strong>
+                <p style="margin-top: 2px;">
+                  <%= expediente.notas %>
+                </p>
+              </div>
+              <% } %>
+          </div>
+
+          <!-- Firma -->
+          <div class="receta-firma">
+            <strong>
+              <%= expediente.medico_nombre %>
+            </strong><br>
+            Firma y Cédula Profesional
+          </div>
+    </div>
+  </div>
+
+  <%- include('partials/footer') %>

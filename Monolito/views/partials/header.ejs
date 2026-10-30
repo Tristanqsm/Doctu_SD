@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>
+    <%= locals.title ? locals.title : 'Doctu' %>
+  </title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" type="image/png" href="/assets/Icon.png">
+</head>
+
+<body>
+  <nav class="navbar">
+    <a href="/" class="navbar-brand">
+      <img src="/assets/Logo.png" alt="Doctu" class="navbar-logo" onerror="this.style.display='none'">
+      <span>DOCTU</span>
+    </a>
+
+    <ul class="navbar-nav">
+      <% if (!user) { %>
+        <li><a href="/" class="nav-link">Inicio</a></li>
+        <li><a href="/login" class="nav-link">Iniciar Sesión</a></li>
+        <li><a href="/registro" class="btn btn-primary btn-sm">Registrarse</a></li>
+        <% } else if (user.rol==='medico' ) { %>
+          <li><a href="/dashboard-medico" class="nav-link">Mi Agenda</a></li>
+          <li><a href="#" onclick="alert('Proximamente'); return false;" class="nav-link">Nueva Cita</a></li>
+          <li><a href="#" onclick="alert('Proximamente'); return false;" class="nav-link">Nuevo Expediente</a></li>
+          <li><span class="user-badge">Dr. <%= user.nombre.split(' ')[0] %></span></li>
+        <li><a href="/logout" class="nav-link" style="color: var(--danger);">Salir</a></li>
+        <% } else if (user.rol==="paciente" ) { %>
+          <li><a href="/portal-paciente" class="nav-link">Mi Portal</a></li>
+          <li><span class="user-badge">Dr. <%= user.nombre.split(' ')[0] %></span></li>
+          <li><a href="/logout" class="nav-link" style="color: var(--danger);">Salir</a></li>
+      <% } %> 
+    </ul>
+  </nav>
+
+  <main class="container">
+    <% if (locals.error) { %>
+      <div class="alert alert-danger">
+        ⚠️ <%= locals.error %>
+      </div>
+    <% } %>
+
+    <% if (locals.success) { %>
+      <div class="alert alert-success">
+        <%= locals.success %>
+      </div>
+    <% } %>

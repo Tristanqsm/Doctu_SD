@@ -1,0 +1,190 @@
+<%- include('partials/header') %>
+
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+    <div>
+      <h2 style="color: var(--primary);">Panel Médico · Dr. <%= user.nombre %>
+      </h2>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">Especialidad: <%= user.especialidad || 'Medicina General'
+          %> | Cédula: <%= user.cedula || 'En trámite' %>
+      </p>
+    </div>
+    <div class="btn-group">
+      <a href="#" onclick="alert('Proximamente'); return false;" class="btn btn-outline">➕ Agendar Cita</a>
+      <a href="#" onclick="alert('Proximamente'); return false;" class="btn btn-primary">📝 Nuevo Expediente</a>
+    </div>
+  </div>
+
+  <!-- Métricas rápidas -->
+  <div class="grid-3">
+    <div class="stat-card">
+      <div class="stat-num">
+        <%= totalCitasHoy %>
+      </div>
+      <div class="stat-label">Citas para Hoy</div>
+    </div>
+    <div class="stat-card" style="border-left-color: var(--warning);">
+      <div class="stat-num" style="color: var(--warning);">
+        <%= citasPendientes %>
+      </div>
+      <div class="stat-label">Citas por Atender</div>
+    </div>
+    <div class="stat-card" style="border-left-color: var(--success);">
+      <div class="stat-num" style="color: var(--success);">
+        <%= totalExpedientes %>
+      </div>
+      <div class="stat-label">Expedientes Creados</div>
+    </div>
+  </div>
+
+  <!-- Agenda de Citas -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📅 Agenda de Citas Médicas</div>
+      <span style="font-size: 0.85rem; color: var(--text-muted);">Fecha actual: <%= hoy %></span>
+    </div>
+
+    <% if (citas.length===0) { %>
+      <p style="color: var(--text-muted); text-align: center; padding: 1.5rem;">No tienes citas programadas por el
+        momento.</p>
+      <% } else { %>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Fecha / Hora</th>
+                <th>Paciente</th>
+                <th>CURP / Tel</th>
+                <th>Motivo de Consulta</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% citas.forEach(c=> { %>
+                <tr class="<%= c.fecha === hoy ? 'cita-hoy' : '' %>">
+                  <td>
+                    <strong>
+                      <%= c.fecha %>
+                    </strong><br>
+                    <span style="color: var(--text-muted);">
+                      <%= c.hora %> hrs
+                    </span>
+                  </td>
+                  <td>
+                    <strong>
+                      <%= c.paciente_nombre %>
+                    </strong>
+                  </td>
+                  <td style="font-size: 0.82rem; color: var(--text-muted);">
+                    <%= c.paciente_curp || 'Sin CURP' %><br>
+                      <%= c.paciente_telefono || 'Sin Tel' %>
+                  </td>
+                  <td>
+                    <%= c.motivo %>
+                  </td>
+                  <td>
+                    <span class="badge badge-<%= c.estado.toLowerCase() %>">
+                      <%= c.estado %>
+                    </span>
+                  </td>
+                  <td>
+                    <div class="btn-group">
+                      <% if (c.estado !=='Atendida' ) { %>
+                        <a href="#" onclick="alert('Proximamente'); return false;" class="btn btn-sm btn-primary"
+                          title="Atender paciente y registrar consulta">
+                          Atender
+                        </a>
+                        <% } %>
+
+                          <% if (c.estado==='Pendiente' ) { %>
+                            <form action="/citas/<%= c.id %>/estado" method="POST" style="display:inline;">
+                              <input type="hidden" name="estado" value="Confirmada">
+                              <button type="submit" class="btn btn-sm btn-outline" title="Confirmar">Confirmar</button>
+                            </form>
+                            <% } %>
+
+                              <% if (c.estado !=='Cancelada' && c.estado !=='Atendida' ) { %>
+                                <form action="/citas/<%= c.id %>/estado" method="POST" style="display:inline;"
+                                  onsubmit="return confirm('¿Cancelar esta cita?');">
+                                  <input type="hidden" name="estado" value="Cancelada">
+                                  <button type="submit" class="btn btn-sm btn-outline" style="color: var(--danger);"
+                                    title="Cancelar">✕</button>
+                                </form>
+                                <% } %>
+                    </div>
+                  </td>
+                </tr>
+                <% }); %>
+            </tbody>
+          </table>
+        </div>
+        <% } %>
+  </div>
+
+  <!-- Buscador y Directorio de Pacientes -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">👥 Directorio de Pacientes</div>
+      <form action="/dashboard-medico" method="GET" style="display: flex; gap: 0.5rem;">
+        <input type="text" name="q" value="<%= busqueda %>" class="form-control"
+          placeholder="Buscar por nombre, CURP o correo..." style="width: 280px; padding: 4px 8px; font-size: 0.88rem;">
+        <button type="submit" class="btn btn-sm btn-primary">Buscar</button>
+        <% if (busqueda) { %>
+          <a href="/dashboard-medico" class="btn btn-sm btn-outline">Limpiar</a>
+          <% } %>
+      </form>
+    </div>
+
+    <% if (pacientes.length===0) { %>
+      <p style="color: var(--text-muted); text-align: center; padding: 1rem;">No se encontraron pacientes que coincidan
+        con la búsqueda.</p>
+      <% } else { %>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Nombre del Paciente</th>
+                <th>CURP</th>
+                <th>Correo</th>
+                <th>Teléfono</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% pacientes.forEach(p=> { %>
+                <tr>
+                  <td><strong>
+                      <%= p.nombre_completo %>
+                    </strong></td>
+                  <td><code><%= p.curp || 'No registrado' %></code></td>
+                  <td>
+                    <%= p.email %>
+                  </td>
+                  <td>
+                    <%= p.telefono || 'Sin teléfono' %>
+                  </td>
+                  <td>
+                    <div class="btn-group">
+                      <a href="#" onclick="alert('Proximamente'); return false;" class="btn btn-sm btn-outline"
+                        title="Ver historial clínico completo">
+                        Historial
+                      </a>
+                      <a href="#" onclick="alert('Proximamente'); return false;" class="btn btn-sm btn-outline"
+                        title="Agendar cita para este paciente">
+                        Agendar Cita
+                      </a>
+                      <a href="#" onclick="alert('Proximamente'); return false;" class="btn btn-sm btn-primary"
+                        title="Crear expediente">
+                        + Expediente
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+                <% }); %>
+            </tbody>
+          </table>
+        </div>
+        <% } %>
+  </div>
+
+  <%- include('partials/footer') %>

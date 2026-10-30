@@ -1,0 +1,148 @@
+<%- include('partials/header') %>
+
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+    <div>
+      <h2 style="color: var(--primary);">Hola, <%= user.nombre %>
+      </h2>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">
+        CURP: <%= user.curp || 'No registrada' %> | Tel: <%= user.telefono || 'No registrado' %> | <%= user.email %>
+      </p>
+    </div>
+    <div>
+      <a href="#" onclick="alert('Proximamente'); return false;" class="btn btn-primary">➕ Solicitar / Agendar Cita</a>
+    </div>
+  </div>
+
+  <!-- Mis Citas -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📅 Mis Citas Médicas</div>
+    </div>
+
+    <% if (citas.length===0) { %>
+      <p style="color: var(--text-muted); text-align: center; padding: 1.5rem;">
+        No tienes citas programadas actualmente.
+      </p>
+      <% } else { %>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Médico Tratante</th>
+                <th>Especialidad</th>
+                <th>Motivo de Consulta</th>
+                <th>Estado</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% citas.forEach(c=> { %>
+                <tr>
+                  <td><strong>
+                      <%= c.fecha %>
+                    </strong></td>
+                  <td>
+                    <%= c.hora %> hrs
+                  </td>
+                  <td>
+                    <%= c.medico_nombre %>
+                  </td>
+                  <td><span style="color: var(--text-muted);">
+                      <%= c.medico_especialidad %>
+                    </span></td>
+                  <td>
+                    <%= c.motivo %>
+                  </td>
+                  <td>
+                    <span class="badge badge-<%= c.estado.toLowerCase() %>">
+                      <%= c.estado %>
+                    </span>
+                  </td>
+                  <td>
+                    <% if (c.estado==='Pendiente' || c.estado==='Confirmada' ) { %>
+                      <form action="/citas/<%= c.id %>/estado" method="POST"
+                        onsubmit="return confirm('¿Deseas cancelar esta cita?');">
+                        <input type="hidden" name="estado" value="Cancelada">
+                        <button type="submit" class="btn btn-sm btn-outline"
+                          style="color: var(--danger);">Cancelar</button>
+                      </form>
+                      <% } else { %>
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">-</span>
+                        <% } %>
+                  </td>
+                </tr>
+                <% }); %>
+            </tbody>
+          </table>
+        </div>
+        <% } %>
+  </div>
+
+  <!-- Mi Historial Clínico -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 Mi Historial Clínico y Recetas</div>
+    </div>
+
+    <% if (expedientes.length===0) { %>
+      <p style="color: var(--text-muted); text-align: center; padding: 1.5rem;">
+        Aún no se han registrado expedientes o consultas médicas para tu cuenta.
+      </p>
+      <% } else { %>
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <% expedientes.forEach(e=> { %>
+            <div
+              style="border: 1px solid var(--border-color); border-radius: 6px; padding: 1.25rem; background: #ffffff;">
+              <div
+                style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
+                <div>
+                  <h3 style="font-size: 1.05rem; color: var(--primary); margin-bottom: 2px;">
+                    Consulta Médica · <%= e.fecha %>
+                  </h3>
+                  <p style="font-size: 0.85rem; color: var(--text-muted);">
+                    Atendido por: <strong>
+                      <%= e.medico_nombre %>
+                    </strong> (<%= e.medico_especialidad %>)
+                  </p>
+                </div>
+                <a href="/expedientes/<%= e.id %>" class="btn btn-sm btn-outline">
+                  📄 Ver Receta / Imprimir
+                </a>
+              </div>
+
+              <div
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 0.75rem;">
+                <div>
+                  <span
+                    style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Diagnóstico:</span>
+                  <p style="font-weight: 600; color: var(--text-main);">
+                    <%= e.diagnostico %>
+                  </p>
+                </div>
+                <div>
+                  <span
+                    style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Motivo
+                    de consulta:</span>
+                  <p style="color: var(--text-main); font-size: 0.9rem;">
+                    <%= e.motivo_consulta %>
+                  </p>
+                </div>
+              </div>
+
+              <div style="background: #faf8ff; border: 1px solid #e9d8fd; border-radius: 4px; padding: 0.75rem 1rem;">
+                <span
+                  style="font-size: 0.78rem; text-transform: uppercase; color: var(--primary); font-weight: 700;">Tratamiento
+                  y Receta:</span>
+                <p style="margin-top: 4px; font-size: 0.92rem; color: #2d3748; white-space: pre-line;">
+                  <%= e.tratamiento_receta %>
+                </p>
+              </div>
+            </div>
+            <% }); %>
+        </div>
+        <% } %>
+  </div>
+
+  <%- include('partials/footer') %>

@@ -1,0 +1,36 @@
+<%- include('partials/header') %>
+
+  <div class="hero">
+    <h1>DOCTU</h1>
+    <p>Sistema de Gestión Médica y Expediente Clínico Digital</p>
+    <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1rem;">
+      <a href="/login" class="btn btn-primary">Iniciar Sesión</a>
+      <a href="/registro" class="btn btn-outline">Crear Cuenta Nueva</a>
+    </div>
+  </div>
+
+  <div class="grid-3" style="margin-top: 2rem;">
+    <div class="card">
+      <div class="card-title">📅 Agenda y Citas</div>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
+        Programación y seguimiento directo de citas médicas entre doctores y pacientes con estados en tiempo real.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Expediente Clínico</div>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
+        Registro unificado de signos vitales, diagnóstico médico, recetas y notas de evolución en un formato claro.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">👥 Directorio de Pacientes</div>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
+        Búsqueda rápida de pacientes por nombre o CURP y consulta centralizada de su historial clínico.
+      </p>
+    </div>
+  </div>
+  </div>
+
+  <%- include('partials/footer') %>

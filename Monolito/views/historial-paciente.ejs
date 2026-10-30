@@ -1,0 +1,74 @@
+<%- include('partials/header') %>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+  <div>
+    <h2 style="color: var(--primary);">Historial Clínico de <%= paciente.nombre_completo %></h2>
+    <p style="color: var(--text-muted); font-size: 0.9rem;">
+      CURP: <%= paciente.curp || 'No registrada' %> | Tel: <%= paciente.telefono || 'Sin teléfono' %> | <%= paciente.email %>
+    </p>
+  </div>
+  <div class="btn-group">
+    <a href="/dashboard-medico" class="btn btn-outline btn-sm">← Volver al Panel</a>
+    <a href="#" onclick="alert('Función de generar expediente no disponible en este prototipo'); return false;" class="btn btn-primary btn-sm">+ Nuevo Expediente</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Consultas y Notas Médicas Registradas (<%= expedientes.length %>)</div>
+  </div>
+
+  <% if (expedientes.length === 0) { %>
+    <p style="color: var(--text-muted); text-align: center; padding: 2rem;">
+      Este paciente aún no cuenta con expedientes registrados.
+    </p>
+  <% } else { %>
+    <div style="display: flex; flex-direction: column; gap: 1rem;">
+      <% expedientes.forEach(e => { %>
+        <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 1.25rem; background: #ffffff;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 0.75rem;">
+            <div>
+              <h3 style="font-size: 1.05rem; color: var(--primary); margin-bottom: 2px;">
+                Consulta del <%= e.fecha %>
+              </h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">
+                Médico: <%= e.medico_nombre %> (<%= e.medico_especialidad %>)
+              </p>
+            </div>
+            <a href="/expedientes/<%= e.id %>" class="btn btn-sm btn-outline">
+              Ver Nota Completa / Imprimir
+            </a>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 0.75rem;">
+            <div>
+              <span style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Motivo:</span>
+              <p style="font-size: 0.9rem;"><%= e.motivo_consulta %></p>
+            </div>
+            <div>
+              <span style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Diagnóstico:</span>
+              <p style="font-size: 0.95rem; font-weight: 600; color: #1a202c;"><%= e.diagnostico %></p>
+            </div>
+          </div>
+
+          <% if (e.presion_arterial || e.temperatura_c || e.peso_kg || e.talla_cm) { %>
+            <div style="background: #edf2f7; padding: 6px 12px; border-radius: 4px; font-size: 0.82rem; margin-bottom: 0.75rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+              <span><strong>P/A:</strong> <%= e.presion_arterial || 'N/A' %></span>
+              <span><strong>Temp:</strong> <%= e.temperatura_c ? e.temperatura_c + ' °C' : 'N/A' %></span>
+              <span><strong>Peso:</strong> <%= e.peso_kg ? e.peso_kg + ' kg' : 'N/A' %></span>
+              <span><strong>Talla:</strong> <%= e.talla_cm ? e.talla_cm + ' cm' : 'N/A' %></span>
+            </div>
+          <% } %>
+
+          <div style="background: #faf8ff; border: 1px solid #e9d8fd; border-radius: 4px; padding: 0.75rem 1rem;">
+            <span style="font-size: 0.78rem; text-transform: uppercase; color: var(--primary); font-weight: 700;">Tratamiento / Receta:</span>
+            <p style="margin-top: 4px; font-size: 0.9rem; white-space: pre-line;"><%= e.tratamiento_receta %></p>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+</div>
+
+<%- include('partials/footer') %>
+
