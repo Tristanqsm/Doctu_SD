@@ -1,0 +1,79 @@
+<%- include('partials/header') %>
+
+<div class="container-narrow" style="margin: 2rem auto;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Crear Cuenta Nueva</div>
+    </div>
+
+    <form action="/registro" method="POST">
+      <div class="form-group">
+        <label class="form-label">Registrarme como:</label>
+        <div style="display: flex; gap: 1rem; margin-top: 0.25rem;">
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="radio" name="rol" value="paciente" <%= rolDefecto === 'paciente' ? 'checked' : '' %> onchange="cambiarRolRegistro('paciente')">
+            Paciente
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="radio" name="rol" value="medico" <%= rolDefecto === 'medico' ? 'checked' : '' %> onchange="cambiarRolRegistro('medico')">
+            Médico
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="nombreCompleto" class="form-label">Nombre Completo:</label>
+        <input type="text" id="nombreCompleto" name="nombreCompleto" class="form-control" placeholder="Ej. Juan Pérez" required>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="email" class="form-label">Correo Electrónico:</label>
+          <input type="email" id="email" name="email" class="form-control" placeholder="correo@ejemplo.com" required>
+        </div>
+        <div class="form-group">
+          <label for="telefono" class="form-label">Teléfono:</label>
+          <input type="tel" id="telefono" name="telefono" class="form-control" placeholder="5512345678">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">Contraseña:</label>
+        <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
+      </div>
+
+      <!-- Campos específicos de Paciente -->
+      <div id="campos-paciente" style="display: <%= rolDefecto === 'paciente' ? 'block' : 'none' %>;">
+        <div class="form-group">
+          <label for="curp" class="form-label">CURP (opcional):</label>
+          <input type="text" id="curp" name="curp" class="form-control" placeholder="18 caracteres alfanuméricos">
+        </div>
+      </div>
+
+      <!-- Campos específicos de Médico -->
+      <div id="campos-medico" style="display: <%= rolDefecto === 'medico' ? 'block' : 'none' %>;">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="especialidad" class="form-label">Especialidad:</label>
+            <input type="text" id="especialidad" name="especialidad" class="form-control" placeholder="Ej. Medicina General">
+          </div>
+          <div class="form-group">
+            <label for="cedula" class="form-label">Cédula Profesional:</label>
+            <input type="text" id="cedula" name="cedula" class="form-control" placeholder="Ej. MED-123456">
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+        Completar Registro
+      </button>
+    </form>
+
+    <p style="text-align: center; margin-top: 1.25rem; font-size: 0.88rem; color: var(--text-muted);">
+      ¿Ya tienes cuenta? <a href="/login" style="color: var(--primary); font-weight: 600;">Inicia sesión</a>
+    </p>
+  </div>
+</div>
+
+<%- include('partials/footer') %>
+

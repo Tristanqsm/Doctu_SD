@@ -1,0 +1,25 @@
+{
+  "name": "doctu-monolito",
+  "version": "1.0.0",
+  "description": "Doctu - Sistema de Gestión Médica y Expedientes Clínicos (Versión Monolítica)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "doctu",
+    "monolito",
+    "salud",
+    "expediente-clinico",
+    "citas-medicas"
+  ],
+  "author": "Equipo Doctu",
+  "license": "ISC",
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1"
+  }
+}
+

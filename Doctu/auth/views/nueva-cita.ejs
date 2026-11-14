@@ -1,0 +1,80 @@
+<%- include('partials/header') %>
+
+<div class="container-narrow" style="margin: 1.5rem auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h2 style="color: var(--primary);">Agendar Nueva Cita</h2>
+    <a href="<%= user.rol === 'medico' ? '/dashboard-medico' : '/portal-paciente' %>" class="btn btn-outline btn-sm">← Regresar</a>
+  </div>
+
+  <div class="card">
+    <form action="/citas/nueva" method="POST">
+      
+      <!-- Si es médico, escoge paciente -->
+      <% if (user.rol === 'medico') { %>
+        <input type="hidden" name="id_medico" value="<%= user.id %>">
+        <div class="form-group">
+          <label for="id_paciente" class="form-label">Seleccionar Paciente:</label>
+          <select name="id_paciente" id="id_paciente" class="form-control" required>
+            <option value="">-- Elige un paciente --</option>
+            <% pacientes.forEach(p => { %>
+              <option value="<%= p.id %>" <%= (pacientePreseleccionado && pacientePreseleccionado == p.id) ? 'selected' : '' %>>
+                <%= p.nombre_completo %> <%= p.curp ? '(' + p.curp + ')' : '' %>
+              </option>
+            <% }); %>
+          </select>
+        </div>
+      <% } else { %>
+        <!-- Si es paciente, escoge médico -->
+        <input type="hidden" name="id_paciente" value="<%= user.id %>">
+        <div class="form-group">
+          <label for="id_medico" class="form-label">Seleccionar Médico:</label>
+          <select name="id_medico" id="id_medico" class="form-control" required>
+            <option value="">-- Elige un médico --</option>
+            <% medicos.forEach(m => { %>
+              <option value="<%= m.id %>">
+                <%= m.nombre_completo %> (<%= m.especialidad %>)
+              </option>
+            <% }); %>
+          </select>
+        </div>
+      <% } %>
+
+      <!-- Fecha y Hora -->
+      <div class="form-row">
+        <div class="form-group">
+          <label for="fecha" class="form-label">Fecha de la Cita:</label>
+          <input type="date" id="fecha" name="fecha" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label for="hora" class="form-label">Hora (ej. 10:30):</label>
+          <input type="time" id="hora" name="hora" class="form-control" value="10:00" required>
+        </div>
+      </div>
+
+      <!-- Motivo -->
+      <div class="form-group">
+        <label for="motivo" class="form-label">Motivo de la Cita:</label>
+        <textarea id="motivo" name="motivo" class="form-control" rows="3" placeholder="Describe brevemente la razón de la consulta..." required></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+        📅 Confirmar y Guardar Cita
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Poner fecha de mañana por defecto en el selector
+  document.addEventListener('DOMContentLoaded', () => {
+    const fechaInput = document.getElementById('fecha');
+    if (fechaInput && !fechaInput.value) {
+      const mañana = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      fechaInput.value = mañana;
+      fechaInput.min = new Date().toISOString().split('T')[0];
+    }
+  });
+</script>
+
+<%- include('partials/footer') %>
+
