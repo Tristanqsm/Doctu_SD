@@ -9,7 +9,7 @@
   </div>
   <div class="btn-group">
     <a href="/dashboard-medico" class="btn btn-outline btn-sm">← Volver al Panel</a>
-    <a href="#" onclick="alert('Función de generar expediente no disponible en este prototipo'); return false;" class="btn btn-primary btn-sm">+ Nuevo Expediente</a>
+    <a href="/expedientes/nuevo?pacienteId=<%= paciente.id %>" class="btn btn-primary btn-sm">+ Nuevo Expediente</a>
   </div>
 </div>
 
@@ -71,4 +71,3 @@
 </div>
 
 <%- include('partials/footer') %>
-

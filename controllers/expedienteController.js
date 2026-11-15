@@ -67,6 +67,8 @@ function postNuevoExpediente(req, res) {
   }
 
   try {
+    db.exec('BEGIN TRANSACTION');
+
     const insert = db.prepare(`
       INSERT INTO expedientes (
         id_paciente, id_medico, id_cita, fecha,
@@ -91,14 +93,14 @@ function postNuevoExpediente(req, res) {
       notas ? notas.trim() : null
     );
 
-    // Si estaba ligado a una cita, marcamos la cita como Atendida
     if (id_cita) {
       db.prepare(`UPDATE citas SET estado = 'Atendida' WHERE id = ?`).run(id_cita);
     }
 
-    console.log(`[Monolito] Nuevo expediente creado con ID #${result.lastInsertRowid}`);
+    db.exec('COMMIT');
     res.redirect(`/expedientes/${result.lastInsertRowid}?success=Expediente registrado exitosamente`);
   } catch (err) {
+    db.exec('ROLLBACK');
     console.error('Error en postNuevoExpediente:', err);
     res.redirect('/expedientes/nuevo?error=' + encodeURIComponent(err.message));
   }

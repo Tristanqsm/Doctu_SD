@@ -1,0 +1,12 @@
+services:
+  doctu-monolito:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - doctu_data:/app/database
+    environment:
+      - PORT=3000
+
+volumes:
+  doctu_data:

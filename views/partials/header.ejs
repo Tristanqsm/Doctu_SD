@@ -23,16 +23,16 @@
         <li><a href="/" class="nav-link">Inicio</a></li>
         <li><a href="/login" class="nav-link">Iniciar Sesión</a></li>
         <li><a href="/registro" class="btn btn-primary btn-sm">Registrarse</a></li>
-        <% } else if (user.rol==='medico' ) { %>
-          <li><a href="/dashboard-medico" class="nav-link">Mi Agenda</a></li>
-          <li><a href="#" onclick="alert('Proximamente'); return false;" class="nav-link">Nueva Cita</a></li>
-          <li><a href="#" onclick="alert('Proximamente'); return false;" class="nav-link">Nuevo Expediente</a></li>
-          <li><span class="user-badge">Dr. <%= user.nombre.split(' ')[0] %></span></li>
+      <% } else if (user.rol==='medico' ) { %>
+        <li><a href="/dashboard-medico" class="nav-link">Mi Agenda</a></li>
+        <li><a href="/citas/nueva" class="nav-link">Nueva Cita</a></li>
+        <li><a href="/expedientes/nuevo" class="nav-link">Nuevo Expediente</a></li>
+        <li><span class="user-badge">Dr. <%= user.nombre.split(' ')[0] %></span></li>
         <li><a href="/logout" class="nav-link" style="color: var(--danger);">Salir</a></li>
-        <% } else if (user.rol==="paciente" ) { %>
-          <li><a href="/portal-paciente" class="nav-link">Mi Portal</a></li>
-          <li><span class="user-badge">Dr. <%= user.nombre.split(' ')[0] %></span></li>
-          <li><a href="/logout" class="nav-link" style="color: var(--danger);">Salir</a></li>
+      <% } else if (user.rol==="paciente" ) { %>
+        <li><a href="/portal-paciente" class="nav-link">Mi Portal</a></li>
+        <li><span class="user-badge"><%= user.nombre.split(' ')[0] %></span></li>
+        <li><a href="/logout" class="nav-link" style="color: var(--danger);">Salir</a></li>
       <% } %> 
     </ul>
   </nav>
