@@ -1,64 +1,46 @@
 <%- include('partials/header') %>
 
-  <div class="container-narrow" style="margin: 2rem auto;">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Iniciar Sesión en Doctu</div>
+  <div class="container-narrow">
+    <div class="card" style="margin-bottom: 0; padding: 2.1rem;">
+      <div style="text-align: center; margin-bottom: 1.4rem;">
+        <h2 style="font-size: 1.45rem; font-weight: 800; letter-spacing: -0.03em; color: var(--ink);">Iniciar Sesión</h2>
+        <p style="font-size: 0.86rem; color: var(--text-muted); margin-top: 4px;">Accede a tu cuenta de Doctu</p>
       </div>
 
-      <form action="/login" method="POST">
+      <form action="/login" method="POST" autocomplete="on">
         <div class="form-group">
-          <label class="form-label">Tipo de Usuario:</label>
-          <div style="display: flex; gap: 1rem; margin-top: 0.25rem;">
-            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-              <input type="radio" name="rol" value="paciente" id="rol-paciente" <%=rolDefecto==='paciente' ? 'checked'
-                : '' %>>
-              Soy Paciente
+          <label class="form-label">Tipo de cuenta</label>
+          <div class="segmented-control">
+            <label class="segmented-option">
+              <input type="radio" name="rol" value="paciente" id="rol-paciente" <%= rolDefecto === 'paciente' ? 'checked' : '' %>>
+              <span>Paciente</span>
             </label>
-            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-              <input type="radio" name="rol" value="medico" id="rol-medico" <%=rolDefecto==='medico' ? 'checked' : ''
-                %>>
-              Soy Médico
+            <label class="segmented-option">
+              <input type="radio" name="rol" value="medico" id="rol-medico" <%= rolDefecto === 'medico' ? 'checked' : '' %>>
+              <span>Médico</span>
             </label>
           </div>
         </div>
 
         <div class="form-group">
-          <label for="email" class="form-label">Correo Electrónico:</label>
-          <input type="email" id="email" name="email" class="form-control" placeholder="correo@ejemplo.com" required>
+          <label for="email" class="form-label">Correo Electrónico</label>
+          <input type="email" id="email" name="email" class="form-control" placeholder="nombre@ejemplo.com" autocomplete="username" required>
         </div>
 
         <div class="form-group">
-          <label for="password" class="form-label">Contraseña:</label>
-          <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
+          <label for="password" class="form-label">Contraseña</label>
+          <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" autocomplete="current-password" required>
         </div>
 
-        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
-          Ingresar al Sistema
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.72rem; margin-top: 0.3rem;">
+          Continuar
         </button>
       </form>
 
-      <div class="demo-box" style="margin-top: 1.25rem;">
-        <h4>Credenciales de prueba:</h4>
-        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-          <p>MEDICO:
-            Email: doctor@doctu.com
-            Contraseña: password123
-            Rol a seleccionar: Soy Médico
-          </p>
-
-          <p>PACIENTE:
-            Email: paciente@doctu.com
-            Contraseña: password123
-            Rol a seleccionar: Soy Paciente
-          </p>
-        </div>
-      </div>
-
-      <p style="text-align: center; margin-top: 1.25rem; font-size: 0.88rem; color: var(--text-muted);">
-        ¿No tienes una cuenta? <a href="/registro" style="color: var(--primary); font-weight: 600;">Regístrate aquí</a>
+      <p style="text-align: center; margin-top: 1.25rem; font-size: 0.84rem; color: var(--text-muted);">
+        ¿No tienes una cuenta? <a href="/registro" style="color: var(--primary); font-weight: 700; text-decoration: none;">Crear cuenta</a>
       </p>
     </div>
   </div>
 
-  <%- include('partials/footer') %>
+<%- include('partials/footer') %>

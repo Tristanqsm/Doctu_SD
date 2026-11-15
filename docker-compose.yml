@@ -4,7 +4,9 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - doctu_data:/app/database
+      - .:/app               #  Mapea el código local al contenedor en tiempo real
+      - /app/node_modules    # Evita que el contenedor pise los modulos con los de la computadora
+      - doctu_data:/app/database # Mantiene la BD persistente
     environment:
       - PORT=3000
 

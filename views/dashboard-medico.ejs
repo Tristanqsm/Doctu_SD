@@ -1,49 +1,55 @@
 <%- include('partials/header') %>
 
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+  <% const tituloMedico = user.nombre.startsWith('Dr') ? user.nombre : 'Dr. ' + user.nombre; %>
+
+  <div class="page-header">
     <div>
-      <h2 style="color: var(--primary);">Panel Médico · Dr. <%= user.nombre %>
-      </h2>
-      <p style="color: var(--text-muted); font-size: 0.9rem;">Especialidad: <%= user.especialidad || 'Medicina General' %> | Cédula: <%= user.cedula || 'En trámite' %>
-      </p>
+      <h2 class="page-title"><%= tituloMedico %></h2>
+      <div class="page-meta">
+        <span><%= user.especialidad || 'Medicina General' %></span>
+        <span>·</span>
+        <span class="mono">Cédula <%= user.cedula || 'En trámite' %></span>
+      </div>
     </div>
-    <div class="btn-group">
-      <a href="/citas/nueva" class="btn btn-outline">➕ Agendar Cita</a>
-      <a href="/expedientes/nuevo" class="btn btn-primary">📝 Nuevo Expediente</a>
-    </div>
+    <span class="mono">Fecha: <%= hoy %></span>
   </div>
 
   <!-- Métricas rápidas -->
   <div class="grid-3">
     <div class="stat-card">
-      <div class="stat-num">
-        <%= totalCitasHoy %>
+      <div class="stat-icon" style="background: var(--primary-soft); color: var(--primary);">🗓️</div>
+      <div class="stat-info">
+        <div class="stat-num"><%= totalCitasHoy %></div>
+        <div class="stat-label">Citas para Hoy</div>
       </div>
-      <div class="stat-label">Citas para Hoy</div>
     </div>
-    <div class="stat-card" style="border-left-color: var(--warning);">
-      <div class="stat-num" style="color: var(--warning);">
-        <%= citasPendientes %>
+
+    <div class="stat-card">
+      <div class="stat-icon" style="background: var(--warning-soft); color: var(--warning);">⏳</div>
+      <div class="stat-info">
+        <div class="stat-num"><%= citasPendientes %></div>
+        <div class="stat-label">Por Atender</div>
       </div>
-      <div class="stat-label">Citas por Atender</div>
     </div>
-    <div class="stat-card" style="border-left-color: var(--success);">
-      <div class="stat-num" style="color: var(--success);">
-        <%= totalExpedientes %>
+
+    <div class="stat-card">
+      <div class="stat-icon" style="background: var(--success-soft); color: var(--success);">📋</div>
+      <div class="stat-info">
+        <div class="stat-num"><%= totalExpedientes %></div>
+        <div class="stat-label">Expedientes</div>
       </div>
-      <div class="stat-label">Expedientes Creados</div>
     </div>
   </div>
 
   <!-- Agenda de Citas -->
   <div class="card">
     <div class="card-header">
-      <div class="card-title">📅 Agenda de Citas Médicas</div>
-      <span style="font-size: 0.85rem; color: var(--text-muted);">Fecha actual: <%= hoy %></span>
+      <div class="card-title">Agenda de Consultas</div>
+      <a href="/citas/nueva" class="btn btn-sm btn-outline">＋ Agendar Cita</a>
     </div>
 
-    <% if (citas.length===0) { %>
-      <p style="color: var(--text-muted); text-align: center; padding: 1.5rem;">No tienes citas programadas por el momento.</p>
+    <% if (citas.length === 0) { %>
+      <p style="color: var(--text-muted); text-align: center; padding: 1.25rem;">No tienes citas programadas por el momento.</p>
     <% } else { %>
       <div class="table-responsive">
         <table class="table">
@@ -51,59 +57,49 @@
             <tr>
               <th>Fecha / Hora</th>
               <th>Paciente</th>
-              <th>CURP / Tel</th>
+              <th>CURP / Contacto</th>
               <th>Motivo de Consulta</th>
               <th>Estado</th>
-              <th>Acciones</th>
+              <th style="text-align: right;">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            <% citas.forEach(c=> { %>
+            <% citas.forEach(c => { %>
               <tr class="<%= c.fecha === hoy ? 'cita-hoy' : '' %>">
-                <td>
-                  <strong>
-                    <%= c.fecha %>
-                  </strong><br>
-                  <span style="color: var(--text-muted);">
-                    <%= c.hora %> hrs
-                  </span>
+                <td style="white-space: nowrap;">
+                  <strong style="color: var(--ink);"><%= c.fecha %></strong><br>
+                  <span class="mono" style="font-size: 0.72rem;"><%= c.hora %> hrs</span>
                 </td>
                 <td>
-                  <strong>
-                    <%= c.paciente_nombre %>
-                  </strong>
+                  <strong style="color: var(--ink);"><%= c.paciente_nombre %></strong>
                 </td>
-                <td style="font-size: 0.82rem; color: var(--text-muted);">
-                  <%= c.paciente_curp || 'Sin CURP' %><br>
-                  <%= c.paciente_telefono || 'Sin Tel' %>
+                <td style="white-space: nowrap;">
+                  <code><%= c.paciente_curp || 'Sin CURP' %></code><br>
+                  <span style="font-size: 0.76rem; color: var(--text-muted);"><%= c.paciente_telefono || 'Sin Tel' %></span>
                 </td>
+                <td><%= c.motivo %></td>
                 <td>
-                  <%= c.motivo %>
+                  <span class="badge badge-<%= c.estado.toLowerCase() %>"><%= c.estado %></span>
                 </td>
-                <td>
-                  <span class="badge badge-<%= c.estado.toLowerCase() %>">
-                    <%= c.estado %>
-                  </span>
-                </td>
-                <td>
+                <td style="text-align: right; white-space: nowrap;">
                   <div class="btn-group">
                     <% if (c.estado === 'Pendiente' || c.estado === 'Confirmada') { %>
-                      <a href="/expedientes/nuevo?citaId=<%= c.id %>&pacienteId=<%= c.paciente_id %>" class="btn btn-sm btn-primary" title="Atender paciente y registrar consulta">
+                      <a href="/expedientes/nuevo?citaId=<%= c.id %>&pacienteId=<%= c.paciente_id %>" class="btn btn-sm btn-primary">
                         Atender
                       </a>
                     <% } %>
 
-                    <% if (c.estado==='Pendiente' ) { %>
+                    <% if (c.estado === 'Pendiente') { %>
                       <form action="/citas/<%= c.id %>/estado" method="POST" style="display:inline;">
                         <input type="hidden" name="estado" value="Confirmada">
-                        <button type="submit" class="btn btn-sm btn-outline" title="Confirmar">Confirmar</button>
+                        <button type="submit" class="btn btn-sm btn-outline">Confirmar</button>
                       </form>
                     <% } %>
 
-                    <% if (c.estado !== 'Cancelada' && c.estado !== 'Atendida' ) { %>
+                    <% if (c.estado !== 'Cancelada' && c.estado !== 'Atendida') { %>
                       <form action="/citas/<%= c.id %>/estado" method="POST" style="display:inline;" onsubmit="return confirm('¿Cancelar esta cita?');">
                         <input type="hidden" name="estado" value="Cancelada">
-                        <button type="submit" class="btn btn-sm btn-outline" style="color: var(--danger);" title="Cancelar">✕</button>
+                        <button type="submit" class="btn btn-sm btn-ghost-danger" title="Cancelar cita">✕</button>
                       </form>
                     <% } %>
                   </div>
@@ -116,51 +112,44 @@
     <% } %>
   </div>
 
-  <!-- Buscador y Directorio de Pacientes -->
-  <div class="card">
+  <!-- Directorio de Pacientes -->
+  <div class="card" style="margin-bottom: 0;">
     <div class="card-header">
-      <div class="card-title">👥 Directorio de Pacientes</div>
-      <form action="/dashboard-medico" method="GET" style="display: flex; gap: 0.5rem;">
-        <input type="text" name="q" value="<%= busqueda %>" class="form-control" placeholder="Buscar por nombre, CURP o correo..." style="width: 280px; padding: 4px 8px; font-size: 0.88rem;">
-        <button type="submit" class="btn btn-sm btn-primary">Buscar</button>
+      <div class="card-title">Directorio de Pacientes</div>
+      <form action="/dashboard-medico" method="GET" style="display: flex; gap: 0.45rem; align-items: center;">
+        <input type="text" name="q" value="<%= busqueda %>" class="form-control" placeholder="Buscar paciente o CURP..." style="width: 240px; padding: 0.38rem 0.85rem; font-size: 0.82rem;">
+        <button type="submit" class="btn btn-sm btn-outline">Buscar</button>
         <% if (busqueda) { %>
-          <a href="/dashboard-medico" class="btn btn-sm btn-outline">Limpiar</a>
+          <a href="/dashboard-medico" class="btn btn-sm btn-ghost-danger" title="Limpiar búsqueda">✕</a>
         <% } %>
       </form>
     </div>
 
-    <% if (pacientes.length===0) { %>
+    <% if (pacientes.length === 0) { %>
       <p style="color: var(--text-muted); text-align: center; padding: 1rem;">No se encontraron pacientes que coincidan con la búsqueda.</p>
     <% } else { %>
       <div class="table-responsive">
         <table class="table">
           <thead>
             <tr>
-              <th>Nombre del Paciente</th>
+              <th>Paciente</th>
               <th>CURP</th>
               <th>Correo</th>
               <th>Teléfono</th>
-              <th>Acciones</th>
+              <th style="text-align: right;">Expediente</th>
             </tr>
           </thead>
           <tbody>
-            <% pacientes.forEach(p=> { %>
+            <% pacientes.forEach(p => { %>
               <tr>
-                <td><strong><%= p.nombre_completo %></strong></td>
+                <td><strong style="color: var(--ink);"><%= p.nombre_completo %></strong></td>
                 <td><code><%= p.curp || 'No registrado' %></code></td>
                 <td><%= p.email %></td>
-                <td><%= p.telefono || 'Sin teléfono' %></td>
-                <td>
+                <td class="mono"><%= p.telefono || 'Sin teléfono' %></td>
+                <td style="text-align: right; white-space: nowrap;">
                   <div class="btn-group">
-                    <a href="/expedientes/paciente/<%= p.id %>" class="btn btn-sm btn-outline" title="Ver historial clínico completo">
-                      Historial
-                    </a>
-                    <a href="/citas/nueva?pacienteId=<%= p.id %>" class="btn btn-sm btn-outline" title="Agendar cita para este paciente">
-                      Agendar Cita
-                    </a>
-                    <a href="/expedientes/nuevo?pacienteId=<%= p.id %>" class="btn btn-sm btn-primary" title="Crear expediente">
-                      + Expediente
-                    </a>
+                    <a href="/expedientes/paciente/<%= p.id %>" class="btn btn-sm btn-outline">Ver Historial</a>
+                    <a href="/expedientes/nuevo?pacienteId=<%= p.id %>" class="btn btn-sm btn-primary">＋ Consulta</a>
                   </div>
                 </td>
               </tr>
