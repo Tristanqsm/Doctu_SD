@@ -79,7 +79,10 @@ function seedInitialData() {
 
   // 3. Citas Iniciales
   const hoy = new Date().toISOString().split('T')[0];
-  const mañana = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  // Crear fecha de mañana de forma segura
+  const fechaManana = new Date();
+  fechaManana.setDate(fechaManana.getDate() + 1);
+  const manana = fechaManana.toISOString().split('T')[0];
 
   const insertCita = db.prepare(`
     INSERT INTO citas (id_paciente, id_medico, fecha, hora, motivo, estado)
@@ -88,8 +91,8 @@ function seedInitialData() {
 
   insertCita.run(3, 1, hoy, '10:00', 'Revisión por dolor abdominal y seguimiento', 'Confirmada');
   insertCita.run(4, 1, hoy, '11:30', 'Chequeo de rutina y presión arterial', 'Pendiente');
-  insertCita.run(5, 1, mañana, '09:00', 'Dolor de cabeza frecuente y fatiga', 'Pendiente');
-  insertCita.run(3, 2, mañana, '16:00', 'Consulta general preventiva', 'Confirmada');
+  insertCita.run(5, 1, manana, '09:00', 'Dolor de cabeza frecuente y fatiga', 'Pendiente');
+  insertCita.run(3, 2, manana, '16:00', 'Consulta general preventiva', 'Confirmada');
 
   // 4. Expedientes Clínicos Previos
   const insertExpediente = db.prepare(`
@@ -133,4 +136,3 @@ function seedInitialData() {
 initDatabase();
 
 module.exports = db;
-

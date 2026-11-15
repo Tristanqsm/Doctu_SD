@@ -87,7 +87,7 @@
                 </td>
                 <td>
                   <div class="btn-group">
-                    <% if (c.estado !== 'Atendida' ) { %>
+                    <% if (c.estado === 'Pendiente' || c.estado === 'Confirmada') { %>
                       <a href="/expedientes/nuevo?citaId=<%= c.id %>&pacienteId=<%= c.paciente_id %>" class="btn btn-sm btn-primary" title="Atender paciente y registrar consulta">
                         Atender
                       </a>

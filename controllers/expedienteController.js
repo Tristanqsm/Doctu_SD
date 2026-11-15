@@ -161,8 +161,7 @@ function getHistorialPaciente(req, res) {
   const user = req.session.user;
 
   try {
-    const paciente = db.prepare('SELECT * FROM usuarios WHERE id = ? AND rol = "paciente"').get(pacienteId);
-
+    const paciente = db.prepare(`SELECT * FROM usuarios WHERE id = ? AND rol = 'paciente'`).get(pacienteId);
     if (!paciente) {
       return res.status(404).render('error', {
         title: 'Paciente no encontrado',
