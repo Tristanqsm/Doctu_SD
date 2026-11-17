@@ -1,14 +1,32 @@
 services:
-  doctu-monolito:
-    build: .
+  gateway:
+    build: ./gateway
     ports:
-      - "3000:3000"
+      - "8080:8080"
     volumes:
-      - .:/app               #  Mapea el código local al contenedor en tiempo real
-      - /app/node_modules    # Evita que el contenedor pise los modulos con los de la computadora
-      - doctu_data:/app/database # Mantiene la BD persistente
+      - ./gateway:/app
+      - /app/node_modules
+    networks:
+      - doctu_net
     environment:
-      - PORT=3000
+      - PORT=8080
+
+  servicio-usuarios:
+    build: ./usuarios
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./usuarios:/app
+      - /app/node_modules
+      - doctu_data:/app/database
+    networks:
+      - doctu_net
+    environment:
+      - PORT=3001
+
+networks:
+  doctu_net:
+    driver: bridge
 
 volumes:
   doctu_data:

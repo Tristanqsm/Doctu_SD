@@ -2,13 +2,15 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 
-router.get('/login', authController.getLogin);
+// ── RUTAS API DEL MICROSERVICIO DE USUARIOS (Solo JSON) ──
+
+// Procesar inicio de sesión
 router.post('/login', authController.postLogin);
 
-router.get('/registro', authController.getRegistro);
+// Procesar registro de nuevo usuario
 router.post('/registro', authController.postRegistro);
 
-router.get('/logout', authController.logout);
+// Cerrar sesión 
+router.post('/logout', authController.logout);
 
 module.exports = router;
-

@@ -1,0 +1,18 @@
+# Dependencias de Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Variables de entorno y secretos
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs y bases de datos locales 
+*.log
