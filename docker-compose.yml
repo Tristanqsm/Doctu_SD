@@ -24,6 +24,19 @@ services:
     environment:
       - PORT=3001
 
+  servicio-agenda:
+    build: ./agenda
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./agenda:/app
+      - /app/node_modules
+      - doctu_data:/app/database
+    networks:
+      - doctu_net
+    environment:
+      - PORT=3002
+
 networks:
   doctu_net:
     driver: bridge

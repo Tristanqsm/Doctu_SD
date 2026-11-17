@@ -16,6 +16,15 @@ app.use('/api/usuarios', createProxyMiddleware({
     }
 }));
 
+// Enrutamiento hacia el microservicio de Agenda
+app.use('/api/agenda', createProxyMiddleware({ 
+    target: 'http://servicio-agenda:3002', 
+    changeOrigin: true,
+    pathRewrite: {
+        '^/api/agenda': '' 
+    }
+}));
+
 app.listen(PORT, () => {
     console.log(`[API Gateway] Escuchando tráfico centralizado en el puerto ${PORT}`);
 });

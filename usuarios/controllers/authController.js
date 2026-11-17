@@ -1,4 +1,8 @@
 const db = require('../database/db');
+const jwt = require('jsonwebtoken'); 
+
+// La llave secreta para firmar los tokens (En producción esto va en un archivo .env oculto)
+const JWT_SECRET = 'doctu_super_secreto_2026';
 
 // Procesar login (API)
 function postLogin(req, res) {
@@ -25,19 +29,24 @@ function postLogin(req, res) {
       });
     }
 
-    console.log(`[Microservicio Auth] Inicio de sesión exitoso: ${user.nombre_completo} (${user.rol})`);
+    //  AQUÍ FABRICAMOS EL TOKEN
+    // Metemos datos clave (payload) pero NUNCA contraseñas ni datos sensibles (PII)
+    const token = jwt.sign(
+      { id: user.id, rol: user.rol, email: user.email }, 
+      JWT_SECRET, 
+      { expiresIn: '24h' } // El token caduca en un día
+    );
+
+    console.log(`[Microservicio Auth] Inicio de sesión exitoso. Token generado para: ${user.nombre_completo}`);
 
     return res.status(200).json({
       mensaje: 'Inicio de sesión exitoso',
+      token: token, // <-- Enviamos el token al frontend
       usuario: {
         id: user.id,
         email: user.email,
         rol: user.rol,
-        nombre: user.nombre_completo,
-        especialidad: user.especialidad,
-        cedula: user.cedula,
-        curp: user.curp,
-        telefono: user.telefono
+        nombre: user.nombre_completo
       }
     });
 
@@ -102,10 +111,10 @@ function postRegistro(req, res) {
   }
 }
 
-// Cerrar sesión (API) - En microservicios, el frontend simplemente borra el token localmente, pero dejamos el endpoint por si acaso.
+// Cerrar sesión
 function logout(req, res) {
   return res.status(200).json({
-    mensaje: 'Sesión cerrada correctamente. (El frontend debe eliminar el token/estado local)'
+    mensaje: 'Sesión cerrada. El frontend debe eliminar el token JWT de su memoria.'
   });
 }
 
