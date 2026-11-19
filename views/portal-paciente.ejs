@@ -1,19 +1,20 @@
 <%- include('partials/header') %>
 
+  <!-- ENCABEZADO DEL PORTAL PACIENTE -->
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
     <div>
-      <h2 style="color: var(--primary);">Hola, <%= user.nombre %>
-      </h2>
+      <h2 style="color: var(--primary);">Hola, <%= user.nombre %></h2>
       <p style="color: var(--text-muted); font-size: 0.9rem;">
         CURP: <%= user.curp || 'No registrada' %> | Tel: <%= user.telefono || 'No registrado' %> | <%= user.email %>
       </p>
     </div>
+    <!-- BOTON AGENDAR CITA -->
     <div>
       <a href="/citas/nueva" class="btn btn-primary">➕ Solicitar / Agendar Cita</a>
     </div>
   </div>
 
-  <!-- Mis Citas -->
+  <!-- APARTADO MIS CITAS -->
   <div class="card">
     <div class="card-header">
       <div class="card-title">📅 Mis Citas Médicas</div>
@@ -68,7 +69,7 @@
     <% } %>
   </div>
 
-  <!-- Mi Historial Clínico -->
+  <!-- APARTADO HISTORIAL CLINICO -->
   <div class="card">
     <div class="card-header">
       <div class="card-title">📋 Mi Historial Clínico y Recetas</div>

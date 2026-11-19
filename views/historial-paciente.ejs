@@ -1,5 +1,6 @@
 <%- include('partials/header') %>
 
+<!-- ENCABEZADO HISTORIAL -->
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
   <div>
     <h2 style="color: var(--primary);">Historial Clínico de <%= paciente.nombre_completo %></h2>
@@ -7,12 +8,14 @@
       CURP: <%= paciente.curp || 'No registrada' %> | Tel: <%= paciente.telefono || 'Sin teléfono' %> | <%= paciente.email %>
     </p>
   </div>
+  <!-- BOTONES DE ACCION -->
   <div class="btn-group">
     <a href="/dashboard-medico" class="btn btn-outline btn-sm">← Volver al Panel</a>
     <a href="/expedientes/nuevo?pacienteId=<%= paciente.id %>" class="btn btn-primary btn-sm">+ Nuevo Expediente</a>
   </div>
 </div>
 
+<!-- LISTADO DE EXPEDIENTES -->
 <div class="card">
   <div class="card-header">
     <div class="card-title">Consultas y Notas Médicas Registradas (<%= expedientes.length %>)</div>
@@ -40,6 +43,7 @@
             </a>
           </div>
 
+          <!-- MOTIVO Y DIAGNOSTICO -->
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 0.75rem;">
             <div>
               <span style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Motivo:</span>
@@ -51,6 +55,7 @@
             </div>
           </div>
 
+          <!-- APARTADO SIGNOS VITALES -->
           <% if (e.presion_arterial || e.temperatura_c || e.peso_kg || e.talla_cm) { %>
             <div style="background: #edf2f7; padding: 6px 12px; border-radius: 4px; font-size: 0.82rem; margin-bottom: 0.75rem; display: flex; gap: 1rem; flex-wrap: wrap;">
               <span><strong>P/A:</strong> <%= e.presion_arterial || 'N/A' %></span>
@@ -60,6 +65,7 @@
             </div>
           <% } %>
 
+          <!-- APARTADO TRATAMIENTO -->
           <div style="background: #faf8ff; border: 1px solid #e9d8fd; border-radius: 4px; padding: 0.75rem 1rem;">
             <span style="font-size: 0.78rem; text-transform: uppercase; color: var(--primary); font-weight: 700;">Tratamiento / Receta:</span>
             <p style="margin-top: 4px; font-size: 0.9rem; white-space: pre-line;"><%= e.tratamiento_receta %></p>

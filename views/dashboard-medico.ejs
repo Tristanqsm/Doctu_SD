@@ -2,6 +2,7 @@
 
   <% const tituloMedico = user.nombre.startsWith('Dr') ? user.nombre : 'Dr. ' + user.nombre; %>
 
+  <!-- ENCABEZADO DEL PANEL MEDICO -->
   <div class="page-header">
     <div>
       <h2 class="page-title"><%= tituloMedico %></h2>
@@ -14,7 +15,7 @@
     <span class="mono">Fecha: <%= hoy %></span>
   </div>
 
-  <!-- Métricas rápidas -->
+  <!-- METRICAS RAPIDAS -->
   <div class="grid-3">
     <div class="stat-card">
       <div class="stat-icon" style="background: var(--primary-soft); color: var(--primary);">🗓️</div>
@@ -41,10 +42,11 @@
     </div>
   </div>
 
-  <!-- Agenda de Citas -->
+  <!-- AGENDA DE CONSULTAS -->
   <div class="card">
     <div class="card-header">
       <div class="card-title">Agenda de Consultas</div>
+      <!-- BOTON AGENDAR CITA -->
       <a href="/citas/nueva" class="btn btn-sm btn-outline">＋ Agendar Cita</a>
     </div>
 
@@ -112,10 +114,11 @@
     <% } %>
   </div>
 
-  <!-- Directorio de Pacientes -->
+  <!-- DIRECTORIO DE PACIENTES -->
   <div class="card" style="margin-bottom: 0;">
     <div class="card-header">
       <div class="card-title">Directorio de Pacientes</div>
+      <!-- BUSCADOR DE PACIENTES -->
       <form action="/dashboard-medico" method="GET" style="display: flex; gap: 0.45rem; align-items: center;">
         <input type="text" name="q" value="<%= busqueda %>" class="form-control" placeholder="Buscar paciente o CURP..." style="width: 240px; padding: 0.38rem 0.85rem; font-size: 0.82rem;">
         <button type="submit" class="btn btn-sm btn-outline">Buscar</button>
@@ -149,6 +152,7 @@
                 <td style="text-align: right; white-space: nowrap;">
                   <div class="btn-group">
                     <a href="/expedientes/paciente/<%= p.id %>" class="btn btn-sm btn-outline">Ver Historial</a>
+                    <!-- BOTON DE REGISTRO DE CONSULTAS -->
                     <a href="/expedientes/nuevo?pacienteId=<%= p.id %>" class="btn btn-sm btn-primary">＋ Consulta</a>
                   </div>
                 </td>

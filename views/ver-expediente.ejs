@@ -1,6 +1,7 @@
 <%- include('partials/header') %>
 
   <div style="max-width: 800px; margin: 1rem auto;">
+    <!-- BARRA DE ACCIONES -->
     <div class="no-print"
       style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
       <div>
@@ -10,6 +11,7 @@
           <a href="/portal-paciente" class="btn btn-outline btn-sm">← Volver a Mis Expedientes</a>
         <% } %>
       </div>
+      <!-- BOTON IMPRIMIR EXPEDIENTE -->
       <div>
         <button onclick="window.print()" class="btn btn-primary btn-sm">
           Imprimir / Guardar en PDF
@@ -18,7 +20,7 @@
     </div>
 
     <div class="receta-box">
-      <!-- Encabezado de la Receta / Expediente -->
+      <!-- ENCABEZADO EXPEDIENTE -->
       <div class="receta-header">
         <div>
           <h2 style="color: var(--primary); margin-bottom: 2px;">DOCTU · NOTA MÉDICA</h2>
@@ -37,7 +39,7 @@
         </div>
       </div>
 
-      <!-- Datos del Paciente -->
+      <!-- DATOS DEL PACIENTE -->
       <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
         <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; font-size: 0.9rem;">
           <div><strong>Paciente:</strong>
@@ -52,7 +54,7 @@
         </div>
       </div>
 
-      <!-- Signos Vitales -->
+      <!-- APARTADO SIGNOS VITALES -->
       <% if (expediente.presion_arterial || expediente.temperatura_c || expediente.peso_kg || expediente.talla_cm) { %>
         <div class="receta-vitals">
           <div><strong>Presión:</strong>
@@ -70,7 +72,7 @@
         </div>
       <% } %>
 
-      <!-- Diagnóstico y Motivo -->
+      <!-- MOTIVO Y DIAGNOSTICO -->
       <div class="receta-body">
         <div style="margin-bottom: 1.25rem;">
           <span style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Motivo de Consulta:</span>
@@ -86,7 +88,7 @@
           </p>
         </div>
 
-        <!-- Receta Médica / Tratamiento -->
+        <!-- RECETA Y TRATAMIENTO -->
         <div style="border-top: 1px dashed var(--border-color); padding-top: 1.25rem; margin-bottom: 1.5rem;">
           <h4 style="color: var(--primary); font-size: 1rem; margin-bottom: 0.5rem;">Rx · Tratamiento y Prescripción Médica:</h4>
           <div style="background: #ffffff; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 4px; white-space: pre-line; font-size: 0.95rem; line-height: 1.6;">
@@ -94,7 +96,7 @@
           </div>
         </div>
 
-        <!-- Notas adicionales -->
+        <!-- OBSERVACIONES CLINICAS -->
         <% if (expediente.notas) { %>
           <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem;">
             <strong>Observaciones Clínicas:</strong>
@@ -105,7 +107,7 @@
         <% } %>
       </div>
 
-      <!-- Firma -->
+      <!-- FIRMA MEDICA -->
       <div class="receta-firma">
         <strong>
           <%= expediente.medico_nombre %>

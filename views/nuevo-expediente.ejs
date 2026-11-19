@@ -1,18 +1,20 @@
 <%- include('partials/header') %>
 
 <div style="max-width: 800px; margin: 1rem auto;">
+  <!-- ENCABEZADO NUEVO EXPEDIENTE -->
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
     <h2 style="color: var(--primary);">Registrar Expediente Clínico</h2>
     <a href="/dashboard-medico" class="btn btn-outline btn-sm">← Volver al Panel</a>
   </div>
 
+  <!-- FORMULARIO DE EXPEDIENTE -->
   <div class="card">
     <form action="/expedientes/nuevo" method="POST">
       <% if (citaSeleccionada) { %>
         <input type="hidden" name="id_cita" value="<%= citaSeleccionada.id %>">
       <% } %>
 
-      <!-- Paciente y Fecha -->
+      <!-- APARTADO PACIENTE Y FECHA -->
       <div class="form-row">
         <div class="form-group" style="flex: 2;">
           <label for="id_paciente" class="form-label">Paciente:</label>
@@ -37,7 +39,7 @@
         </div>
       </div>
 
-      <!-- Signos Vitales (Somatometría Básica) -->
+      <!-- APARTADO SIGNOS VITALES -->
       <div style="background: #f7fafc; border: 1px solid var(--border-color); border-radius: var(--radius); padding: 1rem; margin-bottom: 1.25rem;">
         <label class="form-label" style="color: var(--primary); margin-bottom: 0.75rem;">🩺 Signos Vitales y Somatometría</label>
         <div class="form-row">
@@ -60,30 +62,29 @@
         </div>
       </div>
 
-      <!-- Motivo de Consulta -->
+      <!-- APARTADO MOTIVO Y DIAGNOSTICO -->
       <div class="form-group">
         <label for="motivo_consulta" class="form-label">Motivo de Consulta y Síntomas:</label>
         <textarea id="motivo_consulta" name="motivo_consulta" class="form-control" rows="2" placeholder="Describa el motivo por el cual acude el paciente y síntomas referidos..." required><%= citaSeleccionada ? citaSeleccionada.motivo : '' %></textarea>
       </div>
 
-      <!-- Diagnóstico -->
       <div class="form-group">
         <label for="diagnostico" class="form-label">Diagnóstico Clínico:</label>
         <input type="text" id="diagnostico" name="diagnostico" class="form-control" placeholder="Ej. Faringitis aguda / Gastritis / Cefalea tensional" required>
       </div>
 
-      <!-- Plan de Tratamiento y Receta -->
+      <!-- APARTADO TRATAMIENTO Y NOTAS -->
       <div class="form-group">
         <label for="tratamiento_receta" class="form-label">Plan de Tratamiento y Receta Médica:</label>
         <textarea id="tratamiento_receta" name="tratamiento_receta" class="form-control" rows="4" placeholder="Medicamentos, dosis, frecuencia, duración y recomendaciones generales..." required></textarea>
       </div>
 
-      <!-- Notas adicionales -->
       <div class="form-group">
         <label for="notas" class="form-label">Notas de Evolución u Observaciones Clínicas (opcional):</label>
         <textarea id="notas" name="notas" class="form-control" rows="2" placeholder="Notas internas, evolución esperada o fecha sugerida para próxima revisión..."></textarea>
       </div>
 
+      <!-- BOTONES DE ACCION -->
       <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
         <a href="/dashboard-medico" class="btn btn-outline">Cancelar</a>
         <button type="submit" class="btn btn-primary">
@@ -95,4 +96,3 @@
 </div>
 
 <%- include('partials/footer') %>
-

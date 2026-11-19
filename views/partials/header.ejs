@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 
+<!-- METADATOS Y ESTILOS -->
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,19 +11,24 @@
 </head>
 
 <body>
+  <!-- BARRA DE NAVEGACION -->
   <header class="navbar-wrapper no-print">
     <nav class="navbar">
+      <!-- MARCA -->
       <a href="/" class="navbar-brand">
         <span class="brand-mark">D</span>
         <span>DOCTU</span>
       </a>
 
+      <!-- MENU POR ROL -->
       <ul class="navbar-nav">
         <% if (!user) { %>
+          <!-- NAVEGACION INVITADO -->
           <li><a href="/" class="nav-link <%= currentPath === '/' ? 'active' : '' %>">Inicio</a></li>
           <li><a href="/login" class="nav-link <%= currentPath === '/login' ? 'active' : '' %>">Iniciar Sesión</a></li>
           <li><a href="/registro" class="btn btn-primary btn-sm">Crear Cuenta</a></li>
         <% } else if (user.rol === 'medico') { %>
+          <!-- NAVEGACION MEDICO -->
           <% const nombreLimpio = user.nombre.replace(/^Dra?\.\s*/i, '').split(' ')[0]; %>
           <li><a href="/dashboard-medico" class="nav-link <%= currentPath === '/dashboard-medico' ? 'active' : '' %>">Agenda</a></li>
           <li><a href="/citas/nueva" class="nav-link <%= currentPath === '/citas/nueva' ? 'active' : '' %>">Agendar Cita</a></li>
@@ -31,6 +37,7 @@
           <li><span class="user-badge">Dr. <%= nombreLimpio %></span></li>
           <li><a href="/logout" class="nav-link" style="color: var(--danger);">Salir</a></li>
         <% } else if (user.rol === 'paciente') { %>
+          <!-- NAVEGACION PACIENTE -->
           <li><a href="/portal-paciente" class="nav-link <%= currentPath === '/portal-paciente' ? 'active' : '' %>">Mi Portal</a></li>
           <li><a href="/citas/nueva" class="nav-link <%= currentPath === '/citas/nueva' ? 'active' : '' %>">Agendar Cita</a></li>
           <li class="nav-divider"></li>
@@ -41,7 +48,9 @@
     </nav>
   </header>
 
+  <!-- CONTENIDO PRINCIPAL -->
   <main class="container">
+    <!-- ALERTAS DEL SERVIDOR -->
     <% if (locals.error) { %>
       <div class="alert alert-danger"><%= locals.error %></div>
     <% } %>

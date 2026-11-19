@@ -1,13 +1,17 @@
 <%- include('partials/header') %>
 
+  <!-- CONTENEDOR DE INICIO DE SESION -->
   <div class="container-narrow">
     <div class="card" style="margin-bottom: 0; padding: 2.1rem;">
+      <!-- ENCABEZADO -->
       <div style="text-align: center; margin-bottom: 1.4rem;">
         <h2 style="font-size: 1.45rem; font-weight: 800; letter-spacing: -0.03em; color: var(--ink);">Iniciar Sesión</h2>
         <p style="font-size: 0.86rem; color: var(--text-muted); margin-top: 4px;">Accede a tu cuenta de Doctu</p>
       </div>
 
+      <!-- FORMULARIO DE ACCESO -->
       <form action="/login" method="POST" autocomplete="on">
+        <!-- SELECTOR DE ROL -->
         <div class="form-group">
           <label class="form-label">Tipo de cuenta</label>
           <div class="segmented-control">
@@ -22,6 +26,7 @@
           </div>
         </div>
 
+        <!-- APARTADO CREDENCIALES -->
         <div class="form-group">
           <label for="email" class="form-label">Correo Electrónico</label>
           <input type="email" id="email" name="email" class="form-control" placeholder="nombre@ejemplo.com" autocomplete="username" required>
@@ -32,11 +37,13 @@
           <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" autocomplete="current-password" required>
         </div>
 
+        <!-- BOTON DE INICIO DE SESION -->
         <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.72rem; margin-top: 0.3rem;">
           Continuar
         </button>
       </form>
 
+      <!-- ENLACE DE REGISTRO -->
       <p style="text-align: center; margin-top: 1.25rem; font-size: 0.84rem; color: var(--text-muted);">
         ¿No tienes una cuenta? <a href="/registro" style="color: var(--primary); font-weight: 700; text-decoration: none;">Crear cuenta</a>
       </p>

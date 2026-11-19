@@ -1,12 +1,15 @@
 <%- include('partials/header') %>
 
+<!-- CONTENEDOR DE REGISTRO -->
 <div class="container-narrow" style="margin: 2rem auto;">
   <div class="card">
     <div class="card-header">
       <div class="card-title">Crear Cuenta Nueva</div>
     </div>
 
+    <!-- FORMULARIO DE REGISTRO -->
     <form action="/registro" method="POST">
+      <!-- SELECTOR DE ROL -->
       <div class="form-group">
         <label class="form-label">Registrarme como:</label>
         <div style="display: flex; gap: 1rem; margin-top: 0.25rem;">
@@ -21,6 +24,7 @@
         </div>
       </div>
 
+      <!-- APARTADO DATOS GENERALES -->
       <div class="form-group">
         <label for="nombreCompleto" class="form-label">Nombre Completo:</label>
         <input type="text" id="nombreCompleto" name="nombreCompleto" class="form-control" placeholder="Ej. Juan Pérez" required>
@@ -42,7 +46,7 @@
         <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
       </div>
 
-      <!-- Campos específicos de Paciente -->
+      <!-- APARTADO PACIENTE -->
       <div id="campos-paciente" style="display: <%= rolDefecto === 'paciente' ? 'block' : 'none' %>;">
         <div class="form-group">
           <label for="curp" class="form-label">CURP (opcional):</label>
@@ -50,7 +54,7 @@
         </div>
       </div>
 
-      <!-- Campos específicos de Médico -->
+      <!-- APARTADO MEDICO -->
       <div id="campos-medico" style="display: <%= rolDefecto === 'medico' ? 'block' : 'none' %>;">
         <div class="form-row">
           <div class="form-group">
@@ -64,11 +68,13 @@
         </div>
       </div>
 
+      <!-- BOTON DE REGISTRO -->
       <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
         Completar Registro
       </button>
     </form>
 
+    <!-- ENLACE DE ACCESO -->
     <p style="text-align: center; margin-top: 1.25rem; font-size: 0.88rem; color: var(--text-muted);">
       ¿Ya tienes cuenta? <a href="/login" style="color: var(--primary); font-weight: 600;">Inicia sesión</a>
     </p>
@@ -76,4 +82,3 @@
 </div>
 
 <%- include('partials/footer') %>
-
