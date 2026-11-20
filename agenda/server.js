@@ -1,9 +1,7 @@
 const express = require('express');
 
-// Inicializar la base de datos
 require('./database/db');
 
-// Solo requerimos las rutas correspondientes a la agenda
 const citaRoutes = require('./routes/citaRoutes');
 
 const app = express();
@@ -11,7 +9,14 @@ const PORT = process.env.PORT || 3002;
 
 app.use(express.json());
 
-// ── RUTAS DEL MICROSERVICIO DE AGENDA ──
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'servicio-agenda',
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.use('/', citaRoutes);
 
 app.use((req, res) => {

@@ -1,10 +1,8 @@
 const db = require('../database/db');
-const jwt = require('jsonwebtoken'); 
+const jwt = require('jsonwebtoken');
 
-// La llave secreta para firmar los tokens (En producción esto va en un archivo .env oculto)
-const JWT_SECRET = 'doctu_super_secreto_2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'doctu_super_secreto_2026';
 
-// Procesar login (API)
 function postLogin(req, res) {
   const { email, password, rol } = req.body;
 
@@ -29,27 +27,28 @@ function postLogin(req, res) {
       });
     }
 
-    //  AQUÍ FABRICAMOS EL TOKEN
-    // Metemos datos clave (payload) pero NUNCA contraseñas ni datos sensibles (PII)
     const token = jwt.sign(
-      { id: user.id, rol: user.rol, email: user.email }, 
-      JWT_SECRET, 
-      { expiresIn: '24h' } // El token caduca en un día
+      { id: user.id, rol: user.rol, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '24h' }
     );
 
-    console.log(`[Microservicio Auth] Inicio de sesión exitoso. Token generado para: ${user.nombre_completo}`);
+    console.log(`[Microservicio Usuarios] Token JWT generado para: ${user.nombre_completo} (${user.rol})`);
 
     return res.status(200).json({
       mensaje: 'Inicio de sesión exitoso',
-      token: token, // <-- Enviamos el token al frontend
+      token,
       usuario: {
         id: user.id,
         email: user.email,
         rol: user.rol,
-        nombre: user.nombre_completo
+        nombre: user.nombre_completo,
+        especialidad: user.especialidad,
+        cedula: user.cedula,
+        curp: user.curp,
+        telefono: user.telefono
       }
     });
-
   } catch (err) {
     console.error('Error en postLogin:', err);
     return res.status(500).json({
@@ -59,7 +58,6 @@ function postLogin(req, res) {
   }
 }
 
-// Procesar registro (API)
 function postRegistro(req, res) {
   const { rol, nombreCompleto, email, password, telefono, curp, especialidad, cedula } = req.body;
 
@@ -71,7 +69,10 @@ function postRegistro(req, res) {
   }
 
   try {
-    const existente = db.prepare('SELECT id FROM usuarios WHERE email = ?').get(email.trim().toLowerCase());
+    const emailNormalizado = email.trim().toLowerCase();
+    const rolFinal = rol || 'paciente';
+
+    const existente = db.prepare('SELECT id FROM usuarios WHERE email = ?').get(emailNormalizado);
     if (existente) {
       return res.status(409).json({
         error: 'Conflict',
@@ -84,24 +85,28 @@ function postRegistro(req, res) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    insert.run(
-      email.trim().toLowerCase(),
+    const info = insert.run(
+      emailNormalizado,
       password,
-      rol || 'paciente',
+      rolFinal,
       nombreCompleto.trim(),
       telefono || null,
-      rol === 'paciente' ? (curp || null) : null,
-      rol === 'medico' ? (especialidad || 'Medicina General') : null,
-      rol === 'medico' ? (cedula || null) : null
+      rolFinal === 'paciente' ? (curp || null) : null,
+      rolFinal === 'medico' ? (especialidad || 'Medicina General') : null,
+      rolFinal === 'medico' ? (cedula || null) : null
     );
 
-    console.log(`[Microservicio Auth] Nuevo usuario registrado: ${nombreCompleto} (${rol})`);
-    
+    console.log(`[Microservicio Usuarios] Nuevo usuario registrado: ${nombreCompleto} (${rolFinal})`);
+
     return res.status(201).json({
       mensaje: 'Cuenta creada exitosamente.',
-      usuario: { email: email.trim().toLowerCase(), rol: rol || 'paciente' }
+      usuario: {
+        id: info.lastInsertRowid,
+        email: emailNormalizado,
+        rol: rolFinal,
+        nombre: nombreCompleto.trim()
+      }
     });
-
   } catch (err) {
     console.error('Error en postRegistro:', err);
     return res.status(500).json({
@@ -111,10 +116,9 @@ function postRegistro(req, res) {
   }
 }
 
-// Cerrar sesión
 function logout(req, res) {
   return res.status(200).json({
-    mensaje: 'Sesión cerrada. El frontend debe eliminar el token JWT de su memoria.'
+    mensaje: 'Sesión cerrada. El frontend debe eliminar el token JWT.'
   });
 }
 

@@ -1,56 +1,89 @@
 const db = require('../database/db');
 
-// Devolver listas de médicos y pacientes en formato JSON
-function getReferencias(req, res) {
-  try {
-    const medicos = db.prepare(`
-      SELECT id, nombre_completo, especialidad
-      FROM usuarios
-      WHERE rol = 'medico'
-      ORDER BY nombre_completo ASC
-    `).all();
+function getCitas(req, res) {
+  const { id: userId, rol: userRol } = req.user;
+  const hoy = new Date().toISOString().split('T')[0];
 
-    const pacientes = db.prepare(`
-      SELECT id, nombre_completo, curp
-      FROM usuarios
-      WHERE rol = 'paciente'
-      ORDER BY nombre_completo ASC
-    `).all();
+  try {
+    const columna = userRol === 'medico' ? 'id_medico' : 'id_paciente';
+    const citas = db.prepare(`
+      SELECT id, id_paciente, id_medico, fecha, hora, motivo, estado, creado_en
+      FROM citas
+      WHERE ${columna} = ?
+      ORDER BY fecha ASC, hora ASC
+    `).all(userId);
+
+    const citasHoy = citas.filter(c => c.fecha === hoy);
+    const citasPendientes = citas.filter(c => c.estado === 'Pendiente' || c.estado === 'Confirmada').length;
 
     return res.status(200).json({
-      mensaje: 'Referencias cargadas correctamente',
-      datos: {
-        medicos,
-        pacientes,
-        pacientePreseleccionado: req.query.pacienteId || null
-      }
+      hoy,
+      resumen: {
+        total: citas.length,
+        totalCitasHoy: citasHoy.length,
+        citasPendientes
+      },
+      citas
     });
   } catch (err) {
-    console.error('Error en getReferencias:', err);
+    console.error('Error en getCitas:', err);
     return res.status(500).json({
       error: 'Internal Server Error',
-      mensaje: 'Error al cargar referencias para citas: ' + err.message
+      mensaje: 'Error al consultar citas: ' + err.message
     });
   }
 }
 
-// Procesar guardado de cita (API REST)
-function postNuevaCita(req, res) {
-  // Como ya no hay sesiones en memoria, el cliente debe enviar quién está agendando
-  let { id_paciente, id_medico, fecha, hora, motivo, rol_solicitante, id_solicitante } = req.body;
+function getCitaPorId(req, res) {
+  const citaId = Number(req.params.id);
+  const { id: userId, rol: userRol } = req.user;
 
-  // Lógica de autocompletado
-  if (rol_solicitante === 'paciente') {
-    id_paciente = id_solicitante;
+  if (!Number.isInteger(citaId) || citaId <= 0) {
+    return res.status(400).json({ error: 'Bad Request', mensaje: 'ID de cita inválido.' });
   }
-  if (rol_solicitante === 'medico' && !id_medico) {
-    id_medico = id_solicitante;
+
+  try {
+    const cita = db.prepare(`
+      SELECT id, id_paciente, id_medico, fecha, hora, motivo, estado, creado_en
+      FROM citas
+      WHERE id = ?
+    `).get(citaId);
+
+    if (!cita) {
+      return res.status(404).json({ error: 'Not Found', mensaje: 'Cita no encontrada.' });
+    }
+
+    const esSuPaciente = userRol === 'paciente' && cita.id_paciente === userId;
+    const esSuMedico = userRol === 'medico' && cita.id_medico === userId;
+    if (!esSuPaciente && !esSuMedico) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        mensaje: 'No tienes permiso para ver esta cita.'
+      });
+    }
+
+    return res.status(200).json({ cita });
+  } catch (err) {
+    console.error('Error en getCitaPorId:', err);
+    return res.status(500).json({ error: 'Internal Server Error', mensaje: err.message });
+  }
+}
+
+function postNuevaCita(req, res) {
+  const { id: userId, rol: userRol } = req.user;
+  let { id_paciente, id_medico, fecha, hora, motivo } = req.body;
+
+  if (userRol === 'paciente') {
+    id_paciente = userId;
+  }
+  if (userRol === 'medico' && !id_medico) {
+    id_medico = userId;
   }
 
   if (!id_paciente || !id_medico || !fecha || !hora || !motivo) {
     return res.status(400).json({
       error: 'Bad Request',
-      mensaje: 'Todos los campos son obligatorios'
+      mensaje: 'Todos los campos son obligatorios (id_paciente, id_medico, fecha, hora, motivo).'
     });
   }
 
@@ -68,10 +101,11 @@ function postNuevaCita(req, res) {
       mensaje: 'Cita agendada correctamente',
       cita: {
         id: info.lastInsertRowid,
-        id_paciente,
-        id_medico,
+        id_paciente: Number(id_paciente),
+        id_medico: Number(id_medico),
         fecha,
         hora,
+        motivo: motivo.trim(),
         estado: 'Confirmada'
       }
     });
@@ -84,10 +118,10 @@ function postNuevaCita(req, res) {
   }
 }
 
-// Actualizar estado de cita (API REST)
 function updateEstadoCita(req, res) {
   const citaId = req.params.id;
   const { estado } = req.body;
+  const { id: userId, rol: userRol } = req.user;
 
   const estadosValidos = ['Pendiente', 'Confirmada', 'Atendida', 'Cancelada'];
   if (!estadosValidos.includes(estado)) {
@@ -98,21 +132,34 @@ function updateEstadoCita(req, res) {
   }
 
   try {
-    const result = db.prepare(`
-      UPDATE citas
-      SET estado = ?
-      WHERE id = ?
-    `).run(estado, citaId);
-
-    if (result.changes === 0) {
+    const cita = db.prepare('SELECT id, id_paciente, id_medico FROM citas WHERE id = ?').get(citaId);
+    if (!cita) {
       return res.status(404).json({ error: 'Not Found', mensaje: 'Cita no encontrada' });
     }
+
+    const esSuPaciente = userRol === 'paciente' && cita.id_paciente === userId;
+    const esSuMedico = userRol === 'medico' && cita.id_medico === userId;
+    if (!esSuPaciente && !esSuMedico) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        mensaje: 'No tienes permiso para modificar esta cita.'
+      });
+    }
+
+    if (userRol === 'paciente' && estado !== 'Cancelada') {
+      return res.status(403).json({
+        error: 'Forbidden',
+        mensaje: 'Un paciente solo puede cancelar sus citas.'
+      });
+    }
+
+    db.prepare('UPDATE citas SET estado = ? WHERE id = ?').run(estado, citaId);
 
     console.log(`[Microservicio Agenda] Cita #${citaId} actualizada a estado: ${estado}`);
 
     return res.status(200).json({
       mensaje: 'Estado de cita actualizado',
-      cita_id: citaId,
+      cita_id: Number(citaId),
       nuevo_estado: estado
     });
   } catch (err) {
@@ -125,7 +172,8 @@ function updateEstadoCita(req, res) {
 }
 
 module.exports = {
-  getReferencias,
+  getCitas,
+  getCitaPorId,
   postNuevaCita,
   updateEstadoCita
 };

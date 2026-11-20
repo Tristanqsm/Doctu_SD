@@ -1,0 +1,16 @@
+{
+  "name": "servicio-expedientes",
+  "version": "1.0.0",
+  "description": "Doctu - Microservicio de Expedientes Clínicos y Recetas",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --no-warnings server.js",
+    "dev": "node --no-warnings --watch server.js"
+  },
+  "author": "Equipo Doctu",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3"
+  }
+}

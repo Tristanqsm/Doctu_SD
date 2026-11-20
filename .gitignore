@@ -14,5 +14,7 @@ yarn-error.log
 .DS_Store
 Thumbs.db
 
-# Logs y bases de datos locales 
+# Logs y bases de datos locales
 *.log
+*.db
+**/database/data/

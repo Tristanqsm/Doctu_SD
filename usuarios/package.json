@@ -1,25 +1,16 @@
 {
-  "name": "doctu-monolito",
+  "name": "servicio-usuarios",
   "version": "1.0.0",
-  "description": "Doctu - Sistema de Gestión Médica y Expedientes Clínicos (Versión Monolítica)",
+  "description": "Doctu - Microservicio de Usuarios y Autenticación JWT",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "node --no-warnings server.js",
+    "dev": "node --no-warnings --watch server.js"
   },
-  "keywords": [
-    "doctu",
-    "monolito",
-    "salud",
-    "expediente-clinico",
-    "citas-medicas"
-  ],
   "author": "Equipo Doctu",
   "license": "ISC",
   "dependencies": {
-    "ejs": "^3.1.10",
     "express": "^4.21.2",
-    "express-session": "^1.18.1",
     "jsonwebtoken": "^9.0.3"
   }
 }

@@ -1,4 +1,14 @@
 services:
+  
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    networks:
+      - doctu_net
+
   gateway:
     build: ./gateway
     ports:
@@ -13,33 +23,46 @@ services:
 
   servicio-usuarios:
     build: ./usuarios
-    ports:
-      - "3001:3001"
     volumes:
       - ./usuarios:/app
       - /app/node_modules
-      - doctu_data:/app/database
+      - usuarios_data:/app/database/data
     networks:
       - doctu_net
     environment:
       - PORT=3001
+      - JWT_SECRET=doctu_super_secreto_2026
 
   servicio-agenda:
     build: ./agenda
-    ports:
-      - "3002:3002"
     volumes:
       - ./agenda:/app
       - /app/node_modules
-      - doctu_data:/app/database
+      - agenda_data:/app/database/data
     networks:
       - doctu_net
     environment:
       - PORT=3002
+      - JWT_SECRET=doctu_super_secreto_2026
+
+  servicio-expedientes:
+    build: ./expedientes
+    volumes:
+      - ./expedientes:/app
+      - /app/node_modules
+      - expedientes_data:/app/database/data
+    networks:
+      - doctu_net
+    environment:
+      - PORT=3003
+      - JWT_SECRET=doctu_super_secreto_2026
+      - AGENDA_SERVICE_URL=http://servicio-agenda:3002
 
 networks:
   doctu_net:
     driver: bridge
 
 volumes:
-  doctu_data:
+  usuarios_data:
+  agenda_data:
+  expedientes_data:
