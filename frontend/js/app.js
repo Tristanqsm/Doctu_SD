@@ -18,6 +18,11 @@ function getUser() {
   }
 }
 
+function getPanelRoute(user) {
+  if (!user) return '#/login';
+  return user.rol === 'medico' ? '#/dashboard-medico' : '#/portal-paciente';
+}
+
 function saveSession(token, usuario) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(usuario));
@@ -202,6 +207,7 @@ function navigate(hashPath) {
 
 function renderNavbar(currentPath) {
   const user = getUser();
+  const brandHref = user ? getPanelRoute(user) : '#/';
   let navItems = '';
 
   if (!user) {
@@ -230,7 +236,7 @@ function renderNavbar(currentPath) {
 
   navbarRoot.innerHTML =
     '<nav class="navbar">' +
-      '<a href="#/" class="navbar-brand">' +
+      '<a href="' + brandHref + '" class="navbar-brand">' +
         '<span class="brand-mark">D</span>' +
         '<span>DOCTU</span>' +
       '</a>' +
@@ -252,7 +258,7 @@ function renderNavbar(currentPath) {
 
 function renderErrorView(title, mensaje) {
   const user = getUser();
-  const panelHref = user ? (user.rol === 'medico' ? '#/dashboard-medico' : '#/portal-paciente') : null;
+  const panelHref = user ? getPanelRoute(user) : null;
 
   appRoot.innerHTML =
     '<div class="container-narrow" style="text-align: center; margin: 3rem auto;">' +
@@ -261,14 +267,19 @@ function renderErrorView(title, mensaje) {
         '<h2 style="color: var(--primary); margin-bottom: 0.5rem;">' + escapeHtml(title) + '</h2>' +
         '<p style="color: var(--text-muted); margin-bottom: 1.5rem;">' + escapeHtml(mensaje) + '</p>' +
         '<div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">' +
-          '<a href="#/" class="btn btn-primary">Ir al Inicio</a>' +
-          (panelHref ? '<a href="' + panelHref + '" class="btn btn-outline">Volver a Mi Panel</a>' : '') +
+          '<a href="' + (panelHref || '#/') + '" class="btn btn-primary">' + (panelHref ? 'Volver a Mi Panel' : 'Ir al Inicio') + '</a>' +
         '</div>' +
       '</div>' +
     '</div>';
 }
 
 function renderInicio() {
+  const user = getUser();
+  if (user) {
+    navigate(getPanelRoute(user));
+    return;
+  }
+
   appRoot.innerHTML =
     '<section style="width: 100vw; margin-left: calc(50% - 50vw); min-height: calc(100vh - 150px); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 2rem 1.5rem;">' +
       '<h1 class="kinetic-gradient" style="font-size: clamp(5rem, 22vw, 18rem); font-weight: 800; line-height: 0.92; letter-spacing: -0.06em; margin-bottom: 2.5rem; user-select: none;">DOCTU</h1>' +
@@ -280,6 +291,12 @@ function renderInicio() {
 }
 
 function renderLogin(params) {
+  const user = getUser();
+  if (user) {
+    navigate(getPanelRoute(user));
+    return;
+  }
+
   const rolDefecto = params.get('rol') === 'medico' ? 'medico' : 'paciente';
 
   appRoot.innerHTML =
@@ -338,6 +355,12 @@ function renderLogin(params) {
 }
 
 function renderRegistro(params) {
+  const user = getUser();
+  if (user) {
+    navigate(getPanelRoute(user));
+    return;
+  }
+
   const rolDefecto = params.get('rol') === 'medico' ? 'medico' : 'paciente';
 
   appRoot.innerHTML =
@@ -865,7 +888,7 @@ async function renderNuevaCita(params) {
 
     const manana = new Date(Date.now() + 86400000).toISOString().split('T')[0];
     const hoy = new Date().toISOString().split('T')[0];
-    const volverHref = user.rol === 'medico' ? '#/dashboard-medico' : '#/portal-paciente';
+    const volverHref = getPanelRoute(user);
 
     const selectorHtml =
       user.rol === 'medico'
@@ -1102,7 +1125,7 @@ async function renderVerExpediente(expedienteId) {
     const pac = mapa.get(exp.id_paciente) || {};
     const med = mapa.get(exp.id_medico) || {};
 
-    const volverHref = user.rol === 'medico' ? '#/dashboard-medico' : '#/portal-paciente';
+    const volverHref = getPanelRoute(user);
     const volverTexto = user.rol === 'medico' ? '← Volver al Panel' : '← Volver a Mis Expedientes';
     const tieneSignos = exp.presion_arterial || exp.temperatura_c || exp.peso_kg || exp.talla_cm;
 
