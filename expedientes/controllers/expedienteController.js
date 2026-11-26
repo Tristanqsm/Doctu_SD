@@ -1,6 +1,5 @@
 const db = require('../database/db');
-
-const AGENDA_SERVICE_URL = process.env.AGENDA_SERVICE_URL || 'http://servicio-agenda:3002';
+const { procesarEventoPorId } = require('../workers/outboxWorker');
 
 function getExpedientes(req, res) {
   const { id: userId, rol: userRol } = req.user;
@@ -81,8 +80,30 @@ function getVerExpediente(req, res) {
   }
 }
 
+function getOutboxEventos(req, res) {
+  try {
+    const eventos = db.prepare(`
+      SELECT id, evento, payload, estado, intentos, ultimo_error, creado_en, procesado_en
+      FROM outbox
+      ORDER BY id DESC
+      LIMIT 50
+    `).all();
+
+    return res.status(200).json({
+      total: eventos.length,
+      eventos
+    });
+  } catch (err) {
+    console.error('Error en getOutboxEventos:', err);
+    return res.status(500).json({ error: 'Internal Server Error', mensaje: err.message });
+  }
+}
+
 async function postNuevoExpediente(req, res) {
   const { id: medicoId } = req.user;
+  const rawKey = req.headers['idempotency-key'];
+  const idempotencyKey = typeof rawKey === 'string' && rawKey.trim() !== '' ? rawKey.trim() : null;
+
   const {
     id_paciente,
     id_cita,
@@ -97,6 +118,19 @@ async function postNuevoExpediente(req, res) {
     notas
   } = req.body;
 
+  // 1. Verificar idempotencia antes de insertar
+  if (idempotencyKey) {
+    const existente = db.prepare('SELECT * FROM expedientes WHERE idempotency_key = ?').get(idempotencyKey);
+    if (existente) {
+      console.log(`[Idempotencia] Reintento detectado para key="${idempotencyKey}" -> devolviendo expediente #${existente.id}`);
+      return res.status(200).json({
+        mensaje: 'Expediente recuperado por idempotencia (no se creó duplicado)',
+        idempotente: true,
+        expediente: existente
+      });
+    }
+  }
+
   if (!id_paciente || !motivo_consulta || !diagnostico || !tratamiento_receta) {
     return res.status(400).json({
       error: 'Bad Request',
@@ -105,23 +139,29 @@ async function postNuevoExpediente(req, res) {
   }
 
   let expedienteCreado;
+  let outboxId = null;
+
+  // 2. Transacción atómica: guardar expediente + registrar evento en tabla outbox
   try {
     const citaIdNum = id_cita ? Number(id_cita) : null;
     const fechaFinal = fecha || new Date().toISOString().split('T')[0];
 
-    const insert = db.prepare(`
+    db.exec('BEGIN');
+
+    const insertExp = db.prepare(`
       INSERT INTO expedientes (
-        id_paciente, id_medico, id_cita, fecha,
+        id_paciente, id_medico, id_cita, idempotency_key, fecha,
         motivo_consulta, peso_kg, talla_cm, temperatura_c, presion_arterial,
         diagnostico, tratamiento_receta, notas
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const info = insert.run(
+    const infoExp = insertExp.run(
       Number(id_paciente),
       medicoId,
       citaIdNum,
+      idempotencyKey,
       fechaFinal,
       motivo_consulta.trim(),
       peso_kg !== undefined && peso_kg !== '' && peso_kg !== null ? parseFloat(peso_kg) : null,
@@ -133,39 +173,63 @@ async function postNuevoExpediente(req, res) {
       notas ? notas.trim() : null
     );
 
-    expedienteCreado = db.prepare('SELECT * FROM expedientes WHERE id = ?').get(info.lastInsertRowid);
-    console.log(`[Microservicio Expedientes] Expediente #${expedienteCreado.id} guardado.`);
+    const nuevoExpId = Number(infoExp.lastInsertRowid);
+
+    if (citaIdNum) {
+      const insertOutbox = db.prepare(`
+        INSERT INTO outbox (evento, payload, auth_header, estado)
+        VALUES (?, ?, ?, 'PENDIENTE')
+      `);
+
+      const infoOutbox = insertOutbox.run(
+        'EXPEDIENTE_CREADO',
+        JSON.stringify({
+          id_expediente: nuevoExpId,
+          id_cita: citaIdNum,
+          estado: 'Atendida'
+        }),
+        req.headers.authorization || ''
+      );
+      outboxId = Number(infoOutbox.lastInsertRowid);
+    }
+
+    db.exec('COMMIT');
+
+    expedienteCreado = db.prepare('SELECT * FROM expedientes WHERE id = ?').get(nuevoExpId);
+    console.log(
+      `[Microservicio Expedientes] Expediente #${expedienteCreado.id} guardado` +
+      (outboxId ? ` (Outbox #${outboxId} encolado para Cita #${citaIdNum}).` : '.')
+    );
   } catch (err) {
+    try { db.exec('ROLLBACK'); } catch (_) {}
+
+    // Manejo de condición de carrera si dos peticiones iguales llegaron al mismo milisegundo
+    if (idempotencyKey && err.message && err.message.includes('UNIQUE')) {
+      const existente = db.prepare('SELECT * FROM expedientes WHERE idempotency_key = ?').get(idempotencyKey);
+      if (existente) {
+        return res.status(200).json({
+          mensaje: 'Expediente recuperado por idempotencia (no se creó duplicado)',
+          idempotente: true,
+          expediente: existente
+        });
+      }
+    }
+
     console.error('Error en postNuevoExpediente:', err);
     return res.status(500).json({ error: 'Internal Server Error', mensaje: err.message });
   }
 
+  // 3. Intento inmediato (si agenda está caída, el Outbox Worker lo reintentará cada 5s)
   let citaActualizada = null;
   let advertenciaAgenda = null;
 
-  if (expedienteCreado.id_cita) {
-    try {
-      const resp = await fetch(`${AGENDA_SERVICE_URL}/citas/${expedienteCreado.id_cita}/estado`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: req.headers.authorization || ''
-        },
-        body: JSON.stringify({ estado: 'Atendida' }),
-        signal: AbortSignal.timeout(3000)
-      });
-
-      if (resp.ok) {
-        citaActualizada = true;
-      } else {
-        citaActualizada = false;
-        const bodyErr = await resp.text();
-        advertenciaAgenda = `Agenda respondió HTTP ${resp.status}: ${bodyErr}`;
-      }
-    } catch (err) {
+  if (outboxId) {
+    const resultado = await procesarEventoPorId(outboxId);
+    if (resultado.ok) {
+      citaActualizada = true;
+    } else {
       citaActualizada = false;
-      advertenciaAgenda = `No se pudo contactar a servicio-agenda (${err.message}). El expediente sí fue guardado.`;
-      console.warn('[Microservicio Expedientes]', advertenciaAgenda);
+      advertenciaAgenda = `${resultado.error}. Evento #${outboxId} guardado en Outbox para reintento automático.`;
     }
   }
 
@@ -173,6 +237,7 @@ async function postNuevoExpediente(req, res) {
     mensaje: 'Expediente registrado exitosamente',
     expediente: expedienteCreado,
     cita_actualizada: citaActualizada,
+    outbox_id: outboxId,
     ...(advertenciaAgenda ? { advertencia_agenda: advertenciaAgenda } : {})
   });
 }
@@ -181,5 +246,6 @@ module.exports = {
   getExpedientes,
   getHistorialPaciente,
   getVerExpediente,
+  getOutboxEventos,
   postNuevoExpediente
 };

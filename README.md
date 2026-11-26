@@ -41,6 +41,8 @@ Durante la auditoría de la separación inicial se detectaron y corrigieron los 
 
 ---
 
+
+
 ## Frontend SPA (`frontend/`)
 
 - **`frontend/index.html`**: Contenedor raíz de la SPA (`#navbar-root`, `#app`, `#footer`) y carga de `/js/app.js` y `/css/style.css`.

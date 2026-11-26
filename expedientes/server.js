@@ -3,7 +3,7 @@ const express = require('express');
 require('./database/db');
 
 const expedienteRoutes = require('./routes/expedienteRoutes');
-
+const { iniciarOutboxWorker } = require('./workers/outboxWorker');
 const app = express();
 const PORT = process.env.PORT || 3003;
 
@@ -35,6 +35,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
+  iniciarOutboxWorker();
   console.log(`\n=================================================`);
   console.log(`[Microservicio Expedientes] Activo y escuchando en puerto ${PORT}`);
   console.log(`=================================================\n`);

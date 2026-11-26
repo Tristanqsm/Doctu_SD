@@ -15,6 +15,7 @@ function initDatabase() {
       id_paciente INTEGER NOT NULL,
       id_medico INTEGER NOT NULL,
       id_cita INTEGER,
+      idempotency_key TEXT,
       fecha TEXT NOT NULL,
       motivo_consulta TEXT NOT NULL,
       peso_kg REAL,
@@ -25,6 +26,34 @@ function initDatabase() {
       tratamiento_receta TEXT NOT NULL,
       notas TEXT,
       creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Migración segura si el volumen SQLite ya existía sin idempotency_key
+  const columnas = db.prepare('PRAGMA table_info(expedientes)').all();
+  const tieneIdempotency = columnas.some((col) => col.name === 'idempotency_key');
+  if (!tieneIdempotency) {
+    db.exec('ALTER TABLE expedientes ADD COLUMN idempotency_key TEXT;');
+  }
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_expedientes_idempotency
+    ON expedientes(idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+  `);
+
+  // Tabla Outbox para consistencia eventual hacia servicio-agenda
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      evento TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      auth_header TEXT,
+      estado TEXT NOT NULL DEFAULT 'PENDIENTE',
+      intentos INTEGER NOT NULL DEFAULT 0,
+      ultimo_error TEXT,
+      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
+      procesado_en DATETIME
     );
   `);
 
