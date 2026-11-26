@@ -14,12 +14,26 @@ function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       id_paciente INTEGER NOT NULL,
       id_medico INTEGER NOT NULL,
+      idempotency_key TEXT,
       fecha TEXT NOT NULL,
       hora TEXT NOT NULL,
       motivo TEXT NOT NULL,
       estado TEXT DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Confirmada', 'Atendida', 'Cancelada')),
       creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+  `);
+
+  // Migración segura si el volumen SQLite ya existía sin idempotency_key
+  const columnas = db.prepare('PRAGMA table_info(citas)').all();
+  const tieneIdempotency = columnas.some((col) => col.name === 'idempotency_key');
+  if (!tieneIdempotency) {
+    db.exec('ALTER TABLE citas ADD COLUMN idempotency_key TEXT;');
+  }
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_citas_idempotency
+    ON citas(idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
   `);
 
   const count = db.prepare('SELECT COUNT(*) as total FROM citas').get().total;

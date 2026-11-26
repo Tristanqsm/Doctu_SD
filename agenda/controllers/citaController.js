@@ -44,7 +44,7 @@ function getCitaPorId(req, res) {
 
   try {
     const cita = db.prepare(`
-      SELECT id, id_paciente, id_medico, fecha, hora, motivo, estado, creado_en
+      SELECT id, id_paciente, id_medico, fecha, hora, motivo, estado, idempotency_key, creado_en
       FROM citas
       WHERE id = ?
     `).get(citaId);
@@ -71,7 +71,27 @@ function getCitaPorId(req, res) {
 
 function postNuevaCita(req, res) {
   const { id: userId, rol: userRol } = req.user;
+  const rawKey = req.headers['idempotency-key'];
+  const idempotencyKey = typeof rawKey === 'string' && rawKey.trim() !== '' ? rawKey.trim() : null;
   let { id_paciente, id_medico, fecha, hora, motivo } = req.body;
+
+  // 1. Verificar si la llave de idempotencia ya fue procesada
+  if (idempotencyKey) {
+    const existente = db.prepare(`
+      SELECT id, id_paciente, id_medico, fecha, hora, motivo, estado, idempotency_key, creado_en
+      FROM citas
+      WHERE idempotency_key = ?
+    `).get(idempotencyKey);
+
+    if (existente) {
+      console.log(`[Idempotencia Agenda] Reintento detectado para key="${idempotencyKey}" -> devolviendo cita #${existente.id}`);
+      return res.status(200).json({
+        mensaje: 'Cita recuperada por idempotencia (no se creó duplicado)',
+        idempotente: true,
+        cita: existente
+      });
+    }
+  }
 
   if (userRol === 'paciente') {
     id_paciente = userId;
@@ -89,20 +109,29 @@ function postNuevaCita(req, res) {
 
   try {
     const insert = db.prepare(`
-      INSERT INTO citas (id_paciente, id_medico, fecha, hora, motivo, estado)
-      VALUES (?, ?, ?, ?, ?, 'Confirmada')
+      INSERT INTO citas (id_paciente, id_medico, idempotency_key, fecha, hora, motivo, estado)
+      VALUES (?, ?, ?, ?, ?, ?, 'Confirmada')
     `);
 
-    const info = insert.run(id_paciente, id_medico, fecha, hora, motivo.trim());
+    const info = insert.run(
+      Number(id_paciente),
+      Number(id_medico),
+      idempotencyKey,
+      fecha,
+      hora,
+      motivo.trim()
+    );
 
-    console.log(`[Microservicio Agenda] Nueva cita #${info.lastInsertRowid} registrada para el ${fecha} a las ${hora}`);
+    const nuevaCitaId = Number(info.lastInsertRowid);
+    console.log(`[Microservicio Agenda] Nueva cita #${nuevaCitaId} registrada para el ${fecha} a las ${hora}`);
 
     return res.status(201).json({
       mensaje: 'Cita agendada correctamente',
       cita: {
-        id: info.lastInsertRowid,
+        id: nuevaCitaId,
         id_paciente: Number(id_paciente),
         id_medico: Number(id_medico),
+        idempotency_key: idempotencyKey,
         fecha,
         hora,
         motivo: motivo.trim(),
@@ -110,6 +139,23 @@ function postNuevaCita(req, res) {
       }
     });
   } catch (err) {
+    // Manejo de condición de carrera si dos peticiones iguales llegan simultáneamente
+    if (idempotencyKey && err.message && err.message.includes('UNIQUE')) {
+      const existente = db.prepare(`
+        SELECT id, id_paciente, id_medico, fecha, hora, motivo, estado, idempotency_key, creado_en
+        FROM citas
+        WHERE idempotency_key = ?
+      `).get(idempotencyKey);
+
+      if (existente) {
+        return res.status(200).json({
+          mensaje: 'Cita recuperada por idempotencia (no se creó duplicado)',
+          idempotente: true,
+          cita: existente
+        });
+      }
+    }
+
     console.error('Error en postNuevaCita:', err);
     return res.status(500).json({
       error: 'Internal Server Error',
