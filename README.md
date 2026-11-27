@@ -41,6 +41,39 @@ Durante la auditoría de la separación inicial se detectaron y corrigieron los 
 
 ---
 
+## Estructura de carpetas y separación inicial del backend
+
+La descomposición del monolito comenzó extrayendo el tráfico hacia un **API Gateway** y separando primero los dominios de **Usuarios (Autenticación JWT)** y **Agenda**, para después incorporar **Expedientes** y el **Frontend SPA**:
+
+### Raíz del proyecto
+- **`docker-compose.yml`**: Orquesta los 5 contenedores (`frontend`, `gateway`, `servicio-usuarios`, `servicio-agenda` y `servicio-expedientes`) dentro de la red *bridge* `doctu_net` (usando el DNS interno de Docker para resolver nombres de servicio) y define los volúmenes aislados (`usuarios_data`, `agenda_data`, `expedientes_data`).
+
+### API Gateway (`gateway/`)
+- **`gateway/server.js`**: Punto único de entrada en el puerto `8080` con `express` y `http-proxy-middleware`. Aplica reglas de reescritura (`pathRewrite`) para redirigir `/api/usuarios` → `http://servicio-usuarios:3001`, `/api/agenda` → `http://servicio-agenda:3002` y `/api/expedientes` → `http://servicio-expedientes:3003`. Incluye CORS, `GET /health`, `proxyTimeout` y manejo de errores `502`/`504` en JSON.
+- **`gateway/Dockerfile` y `gateway/package.json`**: Definición del contenedor y dependencias del proxy inverso.
+
+### Microservicio de Usuarios y Autenticación (`usuarios/`)
+Primer módulo extraído del monolito; eliminó las vistas EJS y las sesiones en memoria (`express-session`) para operar como API REST *stateless* en el puerto interno `3001`:
+- **`usuarios/server.js`**: Inicializa la base de datos local y monta las rutas de autenticación y consulta de usuarios en formato JSON.
+- **`usuarios/controllers/authController.js` y `usuarios/routes/authRoutes.js`**: Gestionan `POST /login`, `POST /registro` y `POST /logout`. Al validar credenciales correctas, firma y devuelve un **JSON Web Token (JWT)** con `id`, `rol` y `email` del usuario (sin datos sensibles) para autenticar el resto de los microservicios sin sesiones en servidor.
+- **`usuarios/controllers/usuarioController.js` y `usuarios/routes/usuarioRoutes.js`**: Exponen `GET /perfil`, `GET /medicos`, `GET /pacientes` y `GET /batch` para que el frontend y otros módulos resuelvan perfiles sin acoplarse a la base de datos.
+- **`usuarios/middleware/auth.js`**: Verifica el encabezado `Authorization: Bearer <token>` usando `JWT_SECRET`.
+- **`usuarios/database/db.js`**: Administra la base SQLite aislada (`usuarios.db`) y la auto-siembra inicial de médicos y pacientes.
+
+### Microservicio de Agenda (`agenda/`)
+Segundo módulo extraído del monolito, desacoplado de las plantillas SSR para operar exclusivamente con JSON en el puerto interno `3002`:
+- **`agenda/server.js`**: Arranca el servicio de citas y expone `GET /health`.
+- **`agenda/controllers/citaController.js` y `agenda/routes/citaRoutes.js`**: Gestionan la consulta (`GET /citas`, `GET /citas/:id`), creación (`POST /citas`) y actualización de estado (`POST /citas/:id/estado`) de citas médicas (`Pendiente`, `Confirmada`, `Atendida`, `Cancelada`).
+- **`agenda/middleware/auth.js`**: Valida el token JWT y extrae el usuario autenticado (`req.user`) para filtrar y autorizar acciones según el rol (`medico` o `paciente`).
+- **`agenda/database/db.js`**: Administra la base SQLite aislada (`agenda.db`) con la tabla `citas` sin llaves foráneas hacia `usuarios`.
+
+### Microservicio de Expedientes (`expedientes/`)
+Tercer módulo del dominio clínico en el puerto interno `3003`:
+- **`expedientes/server.js`, `controllers/expedienteController.js` y `routes/expedienteRoutes.js`**: Registran y consultan expedientes clínicos, signos vitales y recetas, comunicándose vía HTTP interno con `servicio-agenda` (`AGENDA_SERVICE_URL`) para marcar citas como `Atendida`.
+- **`expedientes/middleware/auth.js` y `database/db.js`**: Validación JWT compartida y base SQLite aislada (`expedientes.db`).
+
+---
+
 ## Frontend SPA (`frontend/`)
 
 - **`frontend/index.html`**: Contenedor raíz de la SPA (`#navbar-root`, `#app`, `#footer`) y carga de `/js/app.js` y `/css/style.css`.
