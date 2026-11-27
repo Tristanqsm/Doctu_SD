@@ -1,20 +1,26 @@
-const db = require('../database/db');
+const { pool } = require('../database/db');
 
 const AGENDA_SERVICE_URL = process.env.AGENDA_SERVICE_URL || 'http://servicio-agenda:3002';
 const POLL_INTERVAL_MS = Number(process.env.OUTBOX_INTERVAL_MS || 5000);
 
 let procesando = false;
+let intervalo = null;
+
+async function marcarEvento(id, estado, errorMsg) {
+  await pool.query(
+    `UPDATE outbox
+     SET estado = $1, intentos = intentos + 1, ultimo_error = $2
+     WHERE id = $3`,
+    [estado, errorMsg, id]
+  );
+}
 
 async function entregarEvento(eventoRow) {
   let payload;
   try {
     payload = JSON.parse(eventoRow.payload);
   } catch (err) {
-    db.prepare(`
-      UPDATE outbox
-      SET estado = 'FALLIDO', intentos = intentos + 1, ultimo_error = ?
-      WHERE id = ?
-    `).run(`Payload JSON inválido: ${err.message}`, eventoRow.id);
+    await marcarEvento(eventoRow.id, 'FALLIDO', `Payload JSON inválido: ${err.message}`);
     return { ok: false, error: 'Payload inválido' };
   }
 
@@ -30,14 +36,15 @@ async function entregarEvento(eventoRow) {
     });
 
     if (resp.ok) {
-      db.prepare(`
-        UPDATE outbox
-        SET estado = 'PROCESADO',
-            intentos = intentos + 1,
-            ultimo_error = NULL,
-            procesado_en = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(eventoRow.id);
+      await pool.query(
+        `UPDATE outbox
+         SET estado = 'PROCESADO',
+             intentos = intentos + 1,
+             ultimo_error = NULL,
+             procesado_en = now()
+         WHERE id = $1`,
+        [eventoRow.id]
+      );
 
       console.log(
         `[Outbox Worker] Evento #${eventoRow.id} PROCESADO: Cita #${payload.id_cita} -> ${payload.estado}`
@@ -51,21 +58,13 @@ async function entregarEvento(eventoRow) {
     const esErrorPermanente = resp.status >= 400 && resp.status < 500 && resp.status !== 408 && resp.status !== 429;
     const nuevoEstado = esErrorPermanente ? 'FALLIDO' : 'PENDIENTE';
 
-    db.prepare(`
-      UPDATE outbox
-      SET estado = ?, intentos = intentos + 1, ultimo_error = ?
-      WHERE id = ?
-    `).run(nuevoEstado, errorMsg, eventoRow.id);
+    await marcarEvento(eventoRow.id, nuevoEstado, errorMsg);
 
     console.warn(`[Outbox Worker] Evento #${eventoRow.id} (${nuevoEstado}): ${errorMsg}`);
     return { ok: false, error: errorMsg };
   } catch (err) {
     const errorMsg = `No se pudo contactar a servicio-agenda (${err.message})`;
-    db.prepare(`
-      UPDATE outbox
-      SET intentos = intentos + 1, ultimo_error = ?
-      WHERE id = ?
-    `).run(errorMsg, eventoRow.id);
+    await marcarEvento(eventoRow.id, 'PENDIENTE', errorMsg);
 
     console.warn(
       `[Outbox Worker] Evento #${eventoRow.id} sigue PENDIENTE (intento #${eventoRow.intentos + 1}): ${errorMsg}`
@@ -75,9 +74,17 @@ async function entregarEvento(eventoRow) {
 }
 
 async function procesarEventoPorId(outboxId) {
-  const row = db.prepare('SELECT * FROM outbox WHERE id = ? AND estado = ?').get(outboxId, 'PENDIENTE');
-  if (!row) return { ok: true };
-  return entregarEvento(row);
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM outbox WHERE id = $1 AND estado = 'PENDIENTE'",
+      [outboxId]
+    );
+    if (!rows[0]) return { ok: true };
+    return await entregarEvento(rows[0]);
+  } catch (err) {
+    console.error(`[Outbox Worker] Error procesando evento #${outboxId}:`, err.message);
+    return { ok: false, error: `Error interno del outbox (${err.message})` };
+  }
 }
 
 async function procesarPendientes() {
@@ -85,19 +92,19 @@ async function procesarPendientes() {
   procesando = true;
 
   try {
-    const pendientes = db.prepare(`
+    const { rows: pendientes } = await pool.query(`
       SELECT *
       FROM outbox
       WHERE estado = 'PENDIENTE'
       ORDER BY id ASC
       LIMIT 20
-    `).all();
+    `);
 
     for (const eventoRow of pendientes) {
       await entregarEvento(eventoRow);
     }
   } catch (err) {
-    console.error('[Outbox Worker] Error leyendo tabla outbox:', err);
+    console.error('[Outbox Worker] Error leyendo tabla outbox:', err.message);
   } finally {
     procesando = false;
   }
@@ -105,11 +112,17 @@ async function procesarPendientes() {
 
 function iniciarOutboxWorker() {
   console.log(`[Outbox Worker] Iniciado (revisión cada ${POLL_INTERVAL_MS / 1000}s hacia ${AGENDA_SERVICE_URL})`);
-  setInterval(procesarPendientes, POLL_INTERVAL_MS);
+  intervalo = setInterval(procesarPendientes, POLL_INTERVAL_MS);
+}
+
+function detenerOutboxWorker() {
+  if (intervalo) clearInterval(intervalo);
+  intervalo = null;
 }
 
 module.exports = {
   iniciarOutboxWorker,
+  detenerOutboxWorker,
   procesarEventoPorId,
   procesarPendientes
 };

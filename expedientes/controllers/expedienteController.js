@@ -1,17 +1,22 @@
-const db = require('../database/db');
+const { pool } = require('../database/db');
 const { procesarEventoPorId } = require('../workers/outboxWorker');
 
-function getExpedientes(req, res) {
+function numeroOpcional(valor) {
+  return valor !== undefined && valor !== '' && valor !== null ? parseFloat(valor) : null;
+}
+
+async function getExpedientes(req, res) {
   const { id: userId, rol: userRol } = req.user;
 
   try {
     const columna = userRol === 'medico' ? 'id_medico' : 'id_paciente';
-    const expedientes = db.prepare(`
-      SELECT *
-      FROM expedientes
-      WHERE ${columna} = ?
-      ORDER BY fecha DESC, id DESC
-    `).all(userId);
+    const { rows: expedientes } = await pool.query(
+      `SELECT *
+       FROM expedientes
+       WHERE ${columna} = $1
+       ORDER BY fecha DESC, id DESC`,
+      [userId]
+    );
 
     return res.status(200).json({
       total: expedientes.length,
@@ -23,19 +28,20 @@ function getExpedientes(req, res) {
   }
 }
 
-function getHistorialPaciente(req, res) {
+async function getHistorialPaciente(req, res) {
   const pacienteId = Number(req.params.id);
   if (!Number.isInteger(pacienteId) || pacienteId <= 0) {
     return res.status(400).json({ error: 'Bad Request', mensaje: 'ID de paciente inválido.' });
   }
 
   try {
-    const expedientes = db.prepare(`
-      SELECT *
-      FROM expedientes
-      WHERE id_paciente = ?
-      ORDER BY fecha DESC, id DESC
-    `).all(pacienteId);
+    const { rows: expedientes } = await pool.query(
+      `SELECT *
+       FROM expedientes
+       WHERE id_paciente = $1
+       ORDER BY fecha DESC, id DESC`,
+      [pacienteId]
+    );
 
     return res.status(200).json({
       id_paciente: pacienteId,
@@ -48,7 +54,7 @@ function getHistorialPaciente(req, res) {
   }
 }
 
-function getVerExpediente(req, res) {
+async function getVerExpediente(req, res) {
   const expedienteId = Number(req.params.id);
   const { id: userId, rol: userRol } = req.user;
 
@@ -57,7 +63,8 @@ function getVerExpediente(req, res) {
   }
 
   try {
-    const expediente = db.prepare('SELECT * FROM expedientes WHERE id = ?').get(expedienteId);
+    const { rows } = await pool.query('SELECT * FROM expedientes WHERE id = $1', [expedienteId]);
+    const expediente = rows[0];
 
     if (!expediente) {
       return res.status(404).json({
@@ -80,14 +87,14 @@ function getVerExpediente(req, res) {
   }
 }
 
-function getOutboxEventos(req, res) {
+async function getOutboxEventos(req, res) {
   try {
-    const eventos = db.prepare(`
-      SELECT id, evento, payload, estado, intentos, ultimo_error, creado_en, procesado_en
+    const { rows: eventos } = await pool.query(`
+      SELECT id, evento, payload, estado, intentos, ultimo_error, procesado_por, creado_en, procesado_en
       FROM outbox
       ORDER BY id DESC
       LIMIT 50
-    `).all();
+    `);
 
     return res.status(200).json({
       total: eventos.length,
@@ -97,6 +104,11 @@ function getOutboxEventos(req, res) {
     console.error('Error en getOutboxEventos:', err);
     return res.status(500).json({ error: 'Internal Server Error', mensaje: err.message });
   }
+}
+
+async function buscarPorIdempotencyKey(idempotencyKey) {
+  const { rows } = await pool.query('SELECT * FROM expedientes WHERE idempotency_key = $1', [idempotencyKey]);
+  return rows[0] || null;
 }
 
 async function postNuevoExpediente(req, res) {
@@ -120,14 +132,19 @@ async function postNuevoExpediente(req, res) {
 
   // 1. Verificar idempotencia antes de insertar
   if (idempotencyKey) {
-    const existente = db.prepare('SELECT * FROM expedientes WHERE idempotency_key = ?').get(idempotencyKey);
-    if (existente) {
-      console.log(`[Idempotencia] Reintento detectado para key="${idempotencyKey}" -> devolviendo expediente #${existente.id}`);
-      return res.status(200).json({
-        mensaje: 'Expediente recuperado por idempotencia (no se creó duplicado)',
-        idempotente: true,
-        expediente: existente
-      });
+    try {
+      const existente = await buscarPorIdempotencyKey(idempotencyKey);
+      if (existente) {
+        console.log(`[Idempotencia] Reintento detectado para key="${idempotencyKey}" -> devolviendo expediente #${existente.id}`);
+        return res.status(200).json({
+          mensaje: 'Expediente recuperado por idempotencia (no se creó duplicado)',
+          idempotente: true,
+          expediente: existente
+        });
+      }
+    } catch (err) {
+      console.error('Error verificando idempotencia:', err);
+      return res.status(500).json({ error: 'Internal Server Error', mensaje: err.message });
     }
   }
 
@@ -140,72 +157,72 @@ async function postNuevoExpediente(req, res) {
 
   let expedienteCreado;
   let outboxId = null;
+  const citaIdNum = id_cita ? Number(id_cita) : null;
+  const fechaFinal = fecha || new Date().toISOString().split('T')[0];
 
   // 2. Transacción atómica: guardar expediente + registrar evento en tabla outbox
+  let client = null;
   try {
-    const citaIdNum = id_cita ? Number(id_cita) : null;
-    const fechaFinal = fecha || new Date().toISOString().split('T')[0];
+    client = await pool.connect();
+    await client.query('BEGIN');
 
-    db.exec('BEGIN');
-
-    const insertExp = db.prepare(`
-      INSERT INTO expedientes (
+    const { rows } = await client.query(
+      `INSERT INTO expedientes (
         id_paciente, id_medico, id_cita, idempotency_key, fecha,
         motivo_consulta, peso_kg, talla_cm, temperatura_c, presion_arterial,
         diagnostico, tratamiento_receta, notas
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const infoExp = insertExp.run(
-      Number(id_paciente),
-      medicoId,
-      citaIdNum,
-      idempotencyKey,
-      fechaFinal,
-      motivo_consulta.trim(),
-      peso_kg !== undefined && peso_kg !== '' && peso_kg !== null ? parseFloat(peso_kg) : null,
-      talla_cm !== undefined && talla_cm !== '' && talla_cm !== null ? parseFloat(talla_cm) : null,
-      temperatura_c !== undefined && temperatura_c !== '' && temperatura_c !== null ? parseFloat(temperatura_c) : null,
-      presion_arterial ? presion_arterial.trim() : null,
-      diagnostico.trim(),
-      tratamiento_receta.trim(),
-      notas ? notas.trim() : null
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *`,
+      [
+        Number(id_paciente),
+        medicoId,
+        citaIdNum,
+        idempotencyKey,
+        fechaFinal,
+        motivo_consulta.trim(),
+        numeroOpcional(peso_kg),
+        numeroOpcional(talla_cm),
+        numeroOpcional(temperatura_c),
+        presion_arterial ? presion_arterial.trim() : null,
+        diagnostico.trim(),
+        tratamiento_receta.trim(),
+        notas ? notas.trim() : null
+      ]
     );
-
-    const nuevoExpId = Number(infoExp.lastInsertRowid);
+    expedienteCreado = rows[0];
 
     if (citaIdNum) {
-      const insertOutbox = db.prepare(`
-        INSERT INTO outbox (evento, payload, auth_header, estado)
-        VALUES (?, ?, ?, 'PENDIENTE')
-      `);
-
-      const infoOutbox = insertOutbox.run(
-        'EXPEDIENTE_CREADO',
-        JSON.stringify({
-          id_expediente: nuevoExpId,
-          id_cita: citaIdNum,
-          estado: 'Atendida'
-        }),
-        req.headers.authorization || ''
+      const infoOutbox = await client.query(
+        `INSERT INTO outbox (evento, payload, auth_header, estado)
+         VALUES ($1, $2, $3, 'PENDIENTE')
+         RETURNING id`,
+        [
+          'EXPEDIENTE_CREADO',
+          JSON.stringify({
+            id_expediente: expedienteCreado.id,
+            id_cita: citaIdNum,
+            estado: 'Atendida'
+          }),
+          req.headers.authorization || ''
+        ]
       );
-      outboxId = Number(infoOutbox.lastInsertRowid);
+      outboxId = infoOutbox.rows[0].id;
     }
 
-    db.exec('COMMIT');
+    await client.query('COMMIT');
 
-    expedienteCreado = db.prepare('SELECT * FROM expedientes WHERE id = ?').get(nuevoExpId);
     console.log(
       `[Microservicio Expedientes] Expediente #${expedienteCreado.id} guardado` +
       (outboxId ? ` (Outbox #${outboxId} encolado para Cita #${citaIdNum}).` : '.')
     );
   } catch (err) {
-    try { db.exec('ROLLBACK'); } catch (_) {}
+    if (client) await client.query('ROLLBACK').catch(() => {});
 
-    // Manejo de condición de carrera si dos peticiones iguales llegaron al mismo milisegundo
-    if (idempotencyKey && err.message && err.message.includes('UNIQUE')) {
-      const existente = db.prepare('SELECT * FROM expedientes WHERE idempotency_key = ?').get(idempotencyKey);
+    // Condición de carrera: dos peticiones con la misma llave llegaron al mismo tiempo
+    // (23505 = unique_violation en PostgreSQL)
+    if (idempotencyKey && err.code === '23505') {
+      const existente = await buscarPorIdempotencyKey(idempotencyKey).catch(() => null);
       if (existente) {
         return res.status(200).json({
           mensaje: 'Expediente recuperado por idempotencia (no se creó duplicado)',
@@ -215,8 +232,15 @@ async function postNuevoExpediente(req, res) {
       }
     }
 
+    // Clase 22 = datos inválidos (ej. fecha mal formada): error del cliente, no del servidor
+    if (err.code && err.code.startsWith('22')) {
+      return res.status(400).json({ error: 'Bad Request', mensaje: err.message });
+    }
+
     console.error('Error en postNuevoExpediente:', err);
     return res.status(500).json({ error: 'Internal Server Error', mensaje: err.message });
+  } finally {
+    if (client) client.release();
   }
 
   // 3. Intento inmediato (si agenda está caída, el Outbox Worker lo reintentará cada 5s)

@@ -1,5 +1,7 @@
+name: doctu
+
 services:
-  
+
   frontend:
     build: ./frontend
     ports:
@@ -45,18 +47,39 @@ services:
       - PORT=3002
       - JWT_SECRET=doctu_super_secreto_2026
 
+  # Base de datos exclusiva de expedientes (Database per Service). Es PostgreSQL y no
+  # SQLite porque expedientes corre con varias réplicas que deben ver los mismos datos.
+  # No publica puerto: solo servicio-expedientes la alcanza por la red interna.
+  postgres-expedientes:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_DB=expedientes
+      - POSTGRES_USER=expedientes
+      - POSTGRES_PASSWORD=expedientes_pass
+    volumes:
+      - expedientes_pgdata:/var/lib/postgresql/data
+    networks:
+      - doctu_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U expedientes -d expedientes"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Sin bind mount del código: cada réplica corre exactamente la imagen construida
+  # (evita node_modules viejos en volúmenes anónimos al agregar dependencias).
   servicio-expedientes:
     build: ./expedientes
-    volumes:
-      - ./expedientes:/app
-      - /app/node_modules
-      - expedientes_data:/app/database/data
+    depends_on:
+      postgres-expedientes:
+        condition: service_healthy
     networks:
       - doctu_net
     environment:
       - PORT=3003
       - JWT_SECRET=doctu_super_secreto_2026
       - AGENDA_SERVICE_URL=http://servicio-agenda:3002
+      - DATABASE_URL=postgres://expedientes:expedientes_pass@postgres-expedientes:5432/expedientes
 
 networks:
   doctu_net:
@@ -65,4 +88,4 @@ networks:
 volumes:
   usuarios_data:
   agenda_data:
-  expedientes_data:
+  expedientes_pgdata:

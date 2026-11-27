@@ -1,81 +1,119 @@
-const path = require('path');
-const fs = require('fs');
-const { DatabaseSync } = require('node:sqlite');
+const { Pool, types } = require('pg');
 
-const dataDir = path.join(__dirname, 'data');
-fs.mkdirSync(dataDir, { recursive: true });
+// Las columnas DATE se regresan como texto 'YYYY-MM-DD' (igual que con SQLite) para
+// que el frontend no reciba fechas con zona horaria (evita que el 15 se vuelva 14).
+types.setTypeParser(1082, (valor) => valor);
 
-const dbPath = path.join(dataDir, 'expedientes.db');
-const db = new DatabaseSync(dbPath);
+const DATABASE_URL =
+  process.env.DATABASE_URL ||
+  'postgres://expedientes:expedientes_pass@postgres-expedientes:5432/expedientes';
 
-function initDatabase() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS expedientes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      id_paciente INTEGER NOT NULL,
-      id_medico INTEGER NOT NULL,
-      id_cita INTEGER,
-      idempotency_key TEXT,
-      fecha TEXT NOT NULL,
-      motivo_consulta TEXT NOT NULL,
-      peso_kg REAL,
-      talla_cm REAL,
-      temperatura_c REAL,
-      presion_arterial TEXT,
-      diagnostico TEXT NOT NULL,
-      tratamiento_receta TEXT NOT NULL,
-      notas TEXT,
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  max: Number(process.env.PG_POOL_MAX || 10)
+});
 
-  // Migración segura si el volumen SQLite ya existía sin idempotency_key
-  const columnas = db.prepare('PRAGMA table_info(expedientes)').all();
-  const tieneIdempotency = columnas.some((col) => col.name === 'idempotency_key');
-  if (!tieneIdempotency) {
-    db.exec('ALTER TABLE expedientes ADD COLUMN idempotency_key TEXT;');
-  }
+pool.on('error', (err) => {
+  console.error('[Expedientes DB] Error en una conexión inactiva del pool:', err.message);
+});
 
-  db.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_expedientes_idempotency
-    ON expedientes(idempotency_key)
-    WHERE idempotency_key IS NOT NULL;
-  `);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  // Tabla Outbox para consistencia eventual hacia servicio-agenda
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS outbox (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      evento TEXT NOT NULL,
-      payload TEXT NOT NULL,
-      auth_header TEXT,
-      estado TEXT NOT NULL DEFAULT 'PENDIENTE',
-      intentos INTEGER NOT NULL DEFAULT 0,
-      ultimo_error TEXT,
-      creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
-      procesado_en DATETIME
-    );
-  `);
-
-  const count = db.prepare('SELECT COUNT(*) as total FROM expedientes').get().total;
-  if (count === 0) {
-    seedInitialData();
+async function esperarPostgres(maxIntentos = 15) {
+  for (let intento = 1; ; intento++) {
+    try {
+      await pool.query('SELECT 1');
+      return;
+    } catch (err) {
+      if (intento >= maxIntentos) throw err;
+      console.warn(`[Expedientes DB] PostgreSQL aún no responde (${err.message}). Reintento ${intento}/${maxIntentos} en 2s...`);
+      await sleep(2000);
+    }
   }
 }
 
-function seedInitialData() {
+async function initDatabase() {
+  await esperarPostgres();
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Con varias réplicas arrancando a la vez, todas ejecutan este init. El candado
+    // asesor (advisory lock) hace que solo una cree tablas y siembre datos; las demás
+    // esperan y, al entrar, ya encuentran todo creado (no se duplican los datos semilla).
+    await client.query('SELECT pg_advisory_xact_lock(3003)');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS expedientes (
+        id SERIAL PRIMARY KEY,
+        id_paciente INTEGER NOT NULL,
+        id_medico INTEGER NOT NULL,
+        id_cita INTEGER,
+        idempotency_key TEXT UNIQUE,
+        fecha DATE NOT NULL,
+        motivo_consulta TEXT NOT NULL,
+        peso_kg DOUBLE PRECISION,
+        talla_cm DOUBLE PRECISION,
+        temperatura_c DOUBLE PRECISION,
+        presion_arterial TEXT,
+        diagnostico TEXT NOT NULL,
+        tratamiento_receta TEXT NOT NULL,
+        notas TEXT,
+        creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_expedientes_paciente ON expedientes(id_paciente);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_expedientes_medico ON expedientes(id_medico);');
+
+    // Tabla Outbox para consistencia eventual hacia servicio-agenda
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS outbox (
+        id SERIAL PRIMARY KEY,
+        evento TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        auth_header TEXT,
+        estado TEXT NOT NULL DEFAULT 'PENDIENTE'
+          CHECK (estado IN ('PENDIENTE', 'PROCESADO', 'FALLIDO')),
+        intentos INTEGER NOT NULL DEFAULT 0,
+        ultimo_error TEXT,
+        procesado_por TEXT,
+        creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+        procesado_en TIMESTAMPTZ
+      );
+    `);
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_outbox_pendientes ON outbox(id) WHERE estado = 'PENDIENTE';"
+    );
+
+    const { rows } = await client.query('SELECT COUNT(*)::int AS total FROM expedientes');
+    if (rows[0].total === 0) {
+      await seedInitialData(client);
+    }
+
+    await client.query('COMMIT');
+    console.log('[Expedientes DB] Esquema PostgreSQL listo.');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function seedInitialData(client) {
   console.log('[Expedientes DB] Sembrando expedientes clínicos iniciales...');
 
-  const insertExpediente = db.prepare(`
+  const insert = `
     INSERT INTO expedientes (
       id_paciente, id_medico, id_cita, fecha,
       motivo_consulta, peso_kg, talla_cm, temperatura_c, presion_arterial,
       diagnostico, tratamiento_receta, notas
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+  `;
 
-  insertExpediente.run(
+  await client.query(insert, [
     3,
     1,
     1,
@@ -88,9 +126,9 @@ function seedInitialData() {
     'Gastritis aguda / Dispepsia funcional',
     'Omeprazol 20mg cada 24 horas por 14 días. Dieta blanda sin irritantes ni grasas.',
     'Paciente orientado y cooperador. Regresar a revisión en 10 días o en caso de alarma.'
-  );
+  ]);
 
-  insertExpediente.run(
+  await client.query(insert, [
     4,
     1,
     null,
@@ -103,11 +141,12 @@ function seedInitialData() {
     'Faringoamigdalitis aguda',
     'Amoxicilina 500mg cada 8 horas por 7 días. Paracetamol 500mg cada 8 horas si hay dolor o fiebre.',
     'Adecuada hidratación y reposo relativo.'
-  );
+  ]);
 
   console.log('[Expedientes DB] Expedientes sembrados con éxito.');
 }
 
-initDatabase();
-
-module.exports = db;
+module.exports = {
+  pool,
+  initDatabase
+};

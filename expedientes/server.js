@@ -1,7 +1,6 @@
 const express = require('express');
 
-require('./database/db');
-
+const { initDatabase } = require('./database/db');
 const expedienteRoutes = require('./routes/expedienteRoutes');
 const { iniciarOutboxWorker } = require('./workers/outboxWorker');
 const app = express();
@@ -34,9 +33,17 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  iniciarOutboxWorker();
-  console.log(`\n=================================================`);
-  console.log(`[Microservicio Expedientes] Activo y escuchando en puerto ${PORT}`);
-  console.log(`=================================================\n`);
-});
+// Primero se prepara el esquema en PostgreSQL; solo entonces se aceptan peticiones.
+initDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      iniciarOutboxWorker();
+      console.log(`\n=================================================`);
+      console.log(`[Microservicio Expedientes] Activo y escuchando en puerto ${PORT}`);
+      console.log(`=================================================\n`);
+    });
+  })
+  .catch((err) => {
+    console.error('[Microservicio Expedientes] No se pudo inicializar PostgreSQL:', err);
+    process.exit(1);
+  });
