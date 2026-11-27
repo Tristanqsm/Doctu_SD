@@ -65,6 +65,8 @@ docker compose up --build -d
 
 ## 2. Arquitectura
 
+### 2.1 Diagrama de componentes y red
+
 ```mermaid
 flowchart LR
     U[Navegador] -->|HTTP :3000| FE[frontend<br/>SPA en Nginx]
@@ -98,6 +100,18 @@ Solo se publican los puertos **3000** (frontend) y **8080** (gateway). Los servi
 
 ---
 
+#### Descripción de los pasos funcionales:
+
+| Flujo | Acción del usuario | Componentes involucrados | Mecanismo aplicado |
+| :--- | :--- | :--- | :--- |
+| **1. Autenticación** | Inicia sesión con su rol (`médico` o `paciente`). | Frontend &rarr; Gateway &rarr; `servicio-usuarios` &rarr; SQLite | Emisión de token JWT sin sesiones en memoria. |
+| **2. Agendar Cita** | Paciente selecciona médico, fecha y motivo. | Frontend &rarr; Gateway &rarr; `servicio-agenda` &rarr; SQLite | Cabecera `Idempotency-Key` con restricción `UNIQUE` en base de datos. Si el cliente reintenta tras timeout, devuelve el registro existente sin duplicar. |
+| **3. Consulta Médica** | Médico captura signos vitales, diagnóstico y receta. | Frontend &rarr; Gateway &rarr; `servicio-expedientes` &rarr; PostgreSQL | **Outbox Transaccional:** se inserta el expediente y el evento `PENDIENTE` en la misma transacción local ACID. Respuesta inmediata 201 con cabecera `X-Served-By`. |
+| **4. Consistencia Outbox** | Automático en segundo plano. | Worker de expedientes &rarr; PostgreSQL &rarr; `servicio-agenda` &rarr; SQLite | **Consistencia Eventual:** Worker toma eventos con `SELECT FOR UPDATE SKIP LOCKED`, llama a agenda para marcar la cita como `Atendida` y actualiza el evento a `PROCESADO`. Si agenda está caída, reintenta hasta que vuelva a operar. |
+| **5. Consulta de Historial** | Médico o paciente consulta expedientes clínicos. | Frontend &rarr; Gateway &rarr; Réplicas de expedientes &rarr; PostgreSQL | **Balanceo Round-Robin:** el Gateway consulta el DNS de Docker y realiza health checks activos (`GET /health`), repartiendo peticiones entre réplicas sanas con failover automático. |
+
+---
+
 ## 3. Resiliencia y consistencia: qué hay y dónde
 
 | Mecanismo | Dónde | Qué resuelve |
@@ -113,27 +127,116 @@ Solo se publican los puertos **3000** (frontend) y **8080** (gateway). Los servi
 
 ---
 
+## 4. Probar los flujos
 
+Desde la web (http://localhost:3000):
 
-## Frontend SPA (`frontend/`)
+1. **Login JWT:** entra como `doctor@doctu.com`.
+2. **Agendar cita:** entra como paciente y agenda una cita (el frontend manda `Idempotency-Key`).
+3. **Expediente → cita:** como médico, registra un expediente sobre una cita. La cita pasa a `Atendida`.
 
-- **`frontend/index.html`**: Contenedor raíz de la SPA (`#navbar-root`, `#app`, `#footer`) y carga de `/js/app.js` y `/css/style.css`.
-- **`frontend/js/app.js`**: Enrutamiento por hash (`#/`, `#/login`, `#/registro`, `#/dashboard-medico`, `#/portal-paciente`, `#/citas/nueva`, `#/expedientes/nuevo`, `#/expedientes/:id`, `#/expedientes/paciente/:id`), cliente HTTP hacia `http://localhost:8080/api` con gestión de JWT en `localStorage`, resolución de nombres/perfiles vía `/usuarios/batch` y utilidades de UI/notificaciones.
-- **`frontend/js/ui.js` y `frontend/js/api.js`**: Módulos auxiliares de interfaz y comunicación.
-- **`frontend/css/style.css` y `frontend/assets/`**: Estilos visuales y recursos gráficos de la aplicación.
+Por API (bash; en Windows usa **Git Bash**):
+
+```bash
+G=http://localhost:8080/api
+TOKEN=$(curl -s -X POST $G/usuarios/login -H 'Content-Type: application/json' \
+  -d '{"email":"doctor@doctu.com","password":"password123","rol":"medico"}' \
+  | sed -E 's/.*"token":"([^"]+)".*/\1/')
+
+# Idempotencia: el mismo POST dos veces -> 201 la primera, 200 "recuperado" la segunda
+for i in 1 2; do
+  curl -s -X POST $G/expedientes/expedientes -H "Authorization: Bearer $TOKEN" \
+    -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-1' \
+    -d '{"id_paciente":4,"motivo_consulta":"Demo","diagnostico":"Dx","tratamiento_receta":"Tx"}'
+  echo
+done
+
+# Qué réplica atendió cada consulta (cabecera X-Served-By)
+for i in 1 2 3 4; do
+  curl -s -o /dev/null -w '%{http_code} %header{x-served-by}\n' \
+    $G/expedientes/expedientes -H "Authorization: Bearer $TOKEN"
+done
+```
 
 ---
 
-## Ejecución rápida con Docker Compose
+## 5. Pruebas de falla
+
+### 5.1 Caída de réplicas (balanceo)
 
 ```bash
-docker compose up --build -d
-docker compose ps
+./scripts/demo-balanceo.sh            # reparto + 4 escenarios (~3 min)
+./scripts/demo-balanceo.sh stop       # o solo uno: reparto | stop | kill | enferma | colgada
 ```
 
-- **Aplicación web:** `http://localhost:3000`
-- **Healthcheck del Gateway:** `http://localhost:8080/health`
+El script hace una consulta cada medio segundo por el gateway, provoca la falla en la consulta 5, la repara en la 25 y cuenta los errores:
 
-### Credenciales de prueba sembradas
-- **Médico:** `doctor@doctu.com` / `password123` (rol `medico`) o `elena@doctu.com` / `password123`
-- **Paciente:** `paciente@doctu.com` / `password123` (rol `paciente`), `maria@doctu.com` / `password123` o `carlos@doctu.com` / `password123`
+| Escenario | Cómo se provoca | Quién lo detecta | Resultado esperado |
+| :--- | :--- | :--- | :--- |
+| `stop` | `docker stop doctu-servicio-expedientes-1` | Falla de conexión (pasivo) y luego DNS (baja) | 0 errores |
+| `kill` | `docker kill ...` (corte abrupto) | Igual que `stop` | 0 errores |
+| `enferma` | `docker exec ... touch /tmp/doctu-no-sano` → `/health` responde 503 | Health check activo | 0 errores |
+| `colgada` | `docker pause ...` (proceso congelado) | Timeout + health check activo | 0 errores (una consulta tarda ~4 s) |
+
+Para seguir los eventos del balanceador en vivo: `docker compose logs -f gateway`.
+
+> En Git Bash, `docker exec ... /tmp/...` necesita `MSYS_NO_PATHCONV=1` para que `/tmp` no se convierta en una ruta de Windows. El script ya lo define.
+
+### 5.2 Caída de agenda al guardar un expediente (Outbox)
+
+```bash
+docker compose stop servicio-agenda
+```
+
+1. Como médico, registra un expediente sobre una cita, desde la web o con `curl` usando `"id_cita": 2`. La respuesta es **201**: el expediente se guarda y aparece `advertencia_agenda` porque la cita aún no se actualiza.
+2. Revisa el outbox: el evento está `PENDIENTE` y sus intentos suben cada 5 s.
+   ```bash
+   curl -s $G/expedientes/expedientes/outbox -H "Authorization: Bearer $TOKEN"
+   ```
+3. Levanta agenda y espera unos segundos:
+   ```bash
+   docker compose start servicio-agenda
+   ```
+   El evento pasa a `PROCESADO` (con `procesado_por` = la réplica que lo entregó) y la cita queda `Atendida`.
+
+### 5.3 Circuit Breaker
+
+```bash
+docker compose stop servicio-agenda
+for i in 1 2 3 4; do
+  curl -s -o /dev/null -w '%{http_code} circuito=%header{x-circuit-state}\n' \
+    $G/agenda/citas -H "Authorization: Bearer $TOKEN"
+done
+curl -s http://localhost:8080/health      # servicio-agenda: state OPEN
+docker compose start servicio-agenda      # ~15 s después: HALF_OPEN -> CLOSED
+```
+
+---
+
+## 6. Estructura
+
+```
+gateway/       API Gateway: proxy, balanceador, circuit breaker, reintentos
+usuarios/      Login/registro (JWT), perfiles, catálogo de médicos — SQLite
+agenda/        Citas médicas con Idempotency-Key — SQLite
+expedientes/   Expedientes clínicos + outbox worker — PostgreSQL, 2 réplicas
+frontend/      SPA (HTML/CSS/JS) servida por Nginx
+scripts/       demo-balanceo.sh
+```
+
+| Rama | Contenido |
+| :--- | :--- |
+| `main` | README general y `docs/PRD.md` |
+| `01-monolito` | Monolito MVC (Express + EJS + SQLite) |
+| `02-separacion` | 3 microservicios, gateway, JWT, bases aisladas y SPA |
+| `03-resiliencia-y-consistencia` | Esta rama: réplicas, balanceo, PostgreSQL en expedientes, outbox, idempotencia y circuit breaker |
+
+---
+
+## 7. Alcance y pendientes
+
+- **HU-02 (consentimientos)** y **HU-06 (antecedentes del paciente):** no implementadas en esta versión.
+- Los eventos viajan por **outbox + HTTP**, no por un broker dedicado (RabbitMQ o Kafka).
+- El outbox guarda el JWT del médico para llamar a agenda. Si agenda estuviera caída más de 24 h (la vigencia del token), el evento terminaría `FALLIDO`. Lo correcto sería una credencial de servicio a servicio.
+- Solo **expedientes** está replicado. `usuarios` y `agenda` siguen con una instancia y SQLite. El gateway también es una sola instancia.
+- Sin HTTPS ni observabilidad centralizada (métricas y trazas); el estado se consulta en `/health` y en los logs.
