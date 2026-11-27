@@ -28,6 +28,15 @@ REPARA_EN=25
 
 B=$'\e[1m'; V=$'\e[32m'; R=$'\e[31m'; A=$'\e[33m'; N=$'\e[0m'
 
+limpiar() {
+  echo -e "\n${A}Interrupción detectada: restaurando $REPLICA...${N}"
+  docker unpause "$REPLICA" >/dev/null 2>&1 || true
+  docker start "$REPLICA" >/dev/null 2>&1 || true
+  docker exec "$REPLICA" rm -f /tmp/doctu-no-sano >/dev/null 2>&1 || true
+  exit 130
+}
+trap limpiar INT TERM
+
 titulo() { printf '\n%s== %s ==%s\n' "$B" "$1" "$N"; }
 
 login() {

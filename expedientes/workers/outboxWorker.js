@@ -93,7 +93,7 @@ async function entregarEvento(client, eventoRow) {
 
   await actualizarEvento(client, eventoRow.id, nuevoEstado, errorMsg);
   console.warn(`[Outbox Worker ${REPLICA}] Evento #${eventoRow.id} (${nuevoEstado}): ${errorMsg}`);
-  return { ok: false, error: errorMsg };
+  return { ok: false, error: errorMsg, agendaInalcanzable: nuevoEstado === 'PENDIENTE' };
 }
 
 /**
@@ -158,7 +158,7 @@ async function procesarPendientes() {
     for (let i = 0; i < LOTE_MAXIMO; i++) {
       const resultado = await tomarYEntregar();
       if (!resultado.tomado) break;
-      // Si agenda no responde, no tiene caso intentar el resto en esta vuelta
+      // Si agenda no responde o devuelve 5xx, no tiene caso intentar el resto en esta vuelta
       if (resultado.agendaInalcanzable) break;
     }
   } finally {

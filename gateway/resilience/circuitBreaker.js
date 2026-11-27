@@ -60,6 +60,10 @@ class CircuitBreaker {
     this.lastError = errorMessage;
     this.halfOpenInFlight = false;
 
+    if (this.state === 'OPEN') {
+      return;
+    }
+
     if (this.state === 'HALF_OPEN') {
       this.state = 'OPEN';
       console.warn(
@@ -78,6 +82,7 @@ class CircuitBreaker {
   }
 
   getRetryAfterSeconds() {
+    if (this.state === 'HALF_OPEN') return 1;
     if (this.state !== 'OPEN' || !this.lastFailureTime) return 0;
     const remainingMs = Math.max(0, this.resetTimeoutMs - (Date.now() - this.lastFailureTime));
     return Math.ceil(remainingMs / 1000);

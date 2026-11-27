@@ -74,7 +74,12 @@ export const api = {
   // Agenda / Citas
   getCitas: () => request('/agenda/citas'),
   getCitaPorId: (id) => request(`/agenda/citas/${id}`),
-  crearCita: (payload) => request('/agenda/citas', { method: 'POST', body: JSON.stringify(payload) }),
+  crearCita: (payload, idempotencyKey) =>
+    request('/agenda/citas', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}
+    }),
   actualizarEstadoCita: (id, estado) =>
     request(`/agenda/citas/${id}/estado`, { method: 'POST', body: JSON.stringify({ estado }) }),
 
@@ -82,6 +87,10 @@ export const api = {
   getExpedientes: () => request('/expedientes/expedientes'),
   getHistorialPaciente: (id) => request(`/expedientes/expedientes/paciente/${id}`),
   getExpedientePorId: (id) => request(`/expedientes/expedientes/${id}`),
-  crearExpediente: (payload) =>
-    request('/expedientes/expedientes', { method: 'POST', body: JSON.stringify(payload) })
+  crearExpediente: (payload, idempotencyKey) =>
+    request('/expedientes/expedientes', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}
+    })
 };

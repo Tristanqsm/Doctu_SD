@@ -120,8 +120,8 @@ function crearProxyResiliente(servicioNombre) {
     for (let intento = 1; intento <= intentosMaximos; intento++) {
       intentosHechos = intento;
       let instancia = balanceador.elegir(yaIntentadas);
-      if (!instancia && !balanceador.ultimoRefresco) {
-        // El gateway acaba de arrancar y aún no termina su primera consulta al directorio
+      if (!instancia && yaIntentadas.size === 0) {
+        // Sin instancias en caché (arranque inicial o servicio recién levantado en HALF_OPEN)
         await balanceador.refrescar();
         instancia = balanceador.elegir(yaIntentadas);
       }
@@ -150,6 +150,10 @@ function crearProxyResiliente(servicioNombre) {
           ultimoStatus = upstreamResp.status;
           ultimoError = `HTTP ${upstreamResp.status}`;
           yaIntentadas.add(instancia.ip);
+
+          if (upstreamResp.status === 502 || upstreamResp.status === 503 || upstreamResp.status === 504) {
+            balanceador.reportarFallo(instancia.ip, ultimoError);
+          }
 
           if (puedeReintentar && intento < intentosMaximos) {
             const espera = BASE_BACKOFF_MS * Math.pow(2, intento - 1);
