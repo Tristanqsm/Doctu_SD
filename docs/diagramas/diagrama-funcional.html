@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>DOCTU · Diagrama funcional</title>
+<style>
+  html,body{margin:0;background:#fff}
+  svg{display:block;font-family:"Segoe UI",Arial,sans-serif}
+</style></head>
+<body>
+<svg id="d" xmlns="http://www.w3.org/2000/svg" width="1600"></svg>
+<script>
+// Diagrama funcional de DOCTU (diagrama de secuencia por flujo).
+// Fuente editable: cambia COLS / FLUJOS y vuelve a renderizar.
+const W = 1600;
+const COLS = {
+  P:  {x: 95,   t: 'Paciente',            s: 'actor',                         c: '#0369a1'},
+  M:  {x: 255,  t: 'Médico',              s: 'actor',                         c: '#15803d'},
+  SPA:{x: 455,  t: 'Frontend SPA',        s: 'Nginx :3000',                   c: '#0284c7'},
+  GW: {x: 690,  t: 'API Gateway',         s: ':8080 · balanceador · circuit breaker', c: '#0f172a'},
+  US: {x: 935,  t: 'servicio-usuarios',   s: ':3001 · SQLite usuarios.db',    c: '#2563eb'},
+  AG: {x: 1175, t: 'servicio-agenda',     s: ':3002 · SQLite agenda.db',      c: '#7c3aed'},
+  EX: {x: 1430, t: 'servicio-expedientes ×2', s: ':3003 · PostgreSQL 17',     c: '#16a34a'}
+};
+const m = (f, t, l) => ({k: 'm', f, t, l});      // petición
+const r = (f, t, l) => ({k: 'r', f, t, l});      // respuesta
+const n = (c, l) => ({k: 'n', c, l});            // proceso interno
+const FLUJOS = [
+  {t: '1 · Autenticación (paciente o médico)', c: '#eff6ff', b: '#93c5fd', pasos: [
+    m('P', 'SPA', 'Ingresa correo y contraseña'),
+    m('SPA', 'GW', 'POST /api/usuarios/login'),
+    m('GW', 'US', 'POST /login'),
+    n('US', 'Valida credenciales y firma el JWT'),
+    r('US', 'GW', '200 · token JWT'),
+    r('GW', 'SPA', '200 · token JWT'),
+    n('SPA', 'Guarda el JWT en localStorage')]},
+  {t: '2 · Agendar cita', c: '#f5f3ff', b: '#c4b5fd', pasos: [
+    m('P', 'SPA', 'Elige médico, fecha y motivo'),
+    n('SPA', 'Genera Idempotency-Key (UUID)'),
+    m('SPA', 'GW', 'POST /api/agenda/citas + Idempotency-Key'),
+    m('GW', 'AG', 'POST /citas'),
+    n('AG', 'INSERT cita (Pendiente) · UNIQUE(idempotency_key)'),
+    r('AG', 'GW', '201 Created (200 si es reintento)'),
+    r('GW', 'SPA', '201 · cita agendada')]},
+  {t: '3 · Consulta y registro de expediente', c: '#f0fdf4', b: '#86efac', pasos: [
+    m('M', 'SPA', 'Atiende la cita · Guardar expediente'),
+    m('SPA', 'GW', 'POST /api/expedientes/expedientes + Idempotency-Key'),
+    n('GW', 'Round robin a una réplica sana'),
+    m('GW', 'EX', 'POST /expedientes'),
+    n('EX', 'BEGIN · INSERT expediente · INSERT outbox (PENDIENTE) · COMMIT'),
+    r('EX', 'GW', '201 Created + X-Served-By'),
+    r('GW', 'SPA', '201 · expediente guardado')]},
+  {t: '4 · Consistencia eventual (Outbox, en segundo plano)', c: '#fff7ed', b: '#fdba74', pasos: [
+    m('EX', 'AG', 'POST /citas/:id/estado  { Atendida }'),
+    n('AG', 'Cita → Atendida'),
+    r('AG', 'EX', '200 OK'),
+    n('EX', 'outbox → PROCESADO  (si agenda no responde: sigue PENDIENTE y se reintenta cada 5 s)')]},
+  {t: '5 · Consulta de historial (paciente o médico)', c: '#f0fdfa', b: '#5eead4', pasos: [
+    m('P', 'SPA', 'Abre su historial'),
+    m('SPA', 'GW', 'GET /api/expedientes/expedientes'),
+    m('GW', 'EX', 'GET /expedientes  (réplica 1 o 2)'),
+    n('EX', 'SELECT en PostgreSQL'),
+    r('EX', 'GW', '200 · lista + X-Served-By'),
+    r('GW', 'SPA', '200 · historial')]}
+];
+
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('d');
+const capaFondo = el('g'), capaVidas = el('g'), capa = el('g');
+svg.append(capaFondo, capaVidas, capa);
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function texto(x, y, s, attrs = {}, parent = capa) {
+  const t = el('text', {x, y, 'font-size': 13, fill: '#1e293b', ...attrs}, parent);
+  t.textContent = s;
+  return t;
+}
+
+const defs = el('defs', {}, svg);
+const mk = el('marker', {id: 'a', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: 'auto-start-reverse'}, defs);
+el('path', {d: 'M0,0 L10,5 L0,10 z', fill: '#334155'}, mk);
+
+// Encabezados
+const TOP = 70;
+texto(W / 2, 32, 'DOCTU · Diagrama funcional: flujos de punta a punta', {'font-size': 20, 'font-weight': 700, 'text-anchor': 'middle', fill: '#0f172a'});
+for (const c of Object.values(COLS)) {
+  const w = c.s === 'actor' ? 140 : 190, h = 52;
+  el('rect', {x: c.x - w / 2, y: TOP, width: w, height: h, rx: 8, fill: c.c}, capa);
+  texto(c.x, TOP + 22, c.t, {'text-anchor': 'middle', fill: '#fff', 'font-weight': 700, 'font-size': 14});
+  texto(c.x, TOP + 40, c.s, {'text-anchor': 'middle', fill: '#e2e8f0', 'font-size': 11});
+}
+
+// Flujos
+let y = TOP + 80;
+const FILA = 34;
+FLUJOS.forEach((f, i) => {
+  const y0 = y;
+  y += 46;
+  let paso = 0;
+  for (const p of f.pasos) {
+    paso++;
+    const num = `${i + 1}.${paso}`;
+    if (p.k === 'n') {
+      const x = COLS[p.c].x;
+      const t = texto(0, y + 5, `${num}  ${p.l}`, {'font-size': 12, fill: '#0f172a'});
+      const bw = t.getComputedTextLength() + 20;
+      const bx = Math.max(26, Math.min(W - 26 - bw, x - bw / 2));
+      t.setAttribute('x', bx + 10);
+      const rc = el('rect', {x: bx, y: y - 12, width: bw, height: 24, rx: 5, fill: '#ffffff', stroke: f.b, 'stroke-width': 1.5});
+      capa.insertBefore(rc, t);
+    } else {
+      const x1 = COLS[p.f].x, x2 = COLS[p.t].x;
+      const dir = x2 > x1 ? 1 : -1;
+      el('line', {x1: x1 + dir * 4, y1: y + 6, x2: x2 - dir * 4, y2: y + 6, stroke: '#334155', 'stroke-width': 1.6,
+        'stroke-dasharray': p.k === 'r' ? '6 4' : 'none', 'marker-end': 'url(#a)'}, capa);
+      const t = texto((x1 + x2) / 2, y, `${num}  ${p.l}`, {'text-anchor': 'middle', 'font-size': 12.5});
+      const bb = t.getBBox();
+      const fondo = el('rect', {x: bb.x - 4, y: bb.y - 1, width: bb.width + 8, height: bb.height + 2, fill: f.c});
+      capa.insertBefore(fondo, t);
+    }
+    y += FILA;
+  }
+  y += 6;
+  el('rect', {x: 10, y: y0, width: W - 20, height: y - y0, rx: 10, fill: f.c, stroke: f.b, 'stroke-width': 1.2}, capaFondo);
+  texto(24, y0 + 20, f.t, {'font-size': 14, 'font-weight': 700, fill: '#0f172a'}, capaFondo);
+  y += 12;
+});
+
+// Líneas de vida
+for (const c of Object.values(COLS)) {
+  el('line', {x1: c.x, y1: TOP + 52, x2: c.x, y2: y - 8, stroke: '#94a3b8', 'stroke-width': 1.2, 'stroke-dasharray': '3 4'}, capaVidas);
+}
+
+// Leyenda
+y += 10;
+el('line', {x1: 30, y1: y, x2: 90, y2: y, stroke: '#334155', 'stroke-width': 1.6, 'marker-end': 'url(#a)'}, capa);
+texto(100, y + 4, 'Petición', {'font-size': 12});
+el('line', {x1: 200, y1: y, x2: 260, y2: y, stroke: '#334155', 'stroke-width': 1.6, 'stroke-dasharray': '6 4', 'marker-end': 'url(#a)'}, capa);
+texto(270, y + 4, 'Respuesta', {'font-size': 12});
+el('rect', {x: 380, y: y - 10, width: 40, height: 20, rx: 4, fill: '#fff', stroke: '#94a3b8', 'stroke-width': 1.5}, capa);
+texto(430, y + 4, 'Proceso interno del servicio', {'font-size': 12});
+texto(W - 30, y + 4, 'Todo el tráfico del navegador entra por el API Gateway; el Outbox (flujo 4) va directo por la red interna de Docker.',
+  {'font-size': 12, 'text-anchor': 'end', fill: '#475569'});
+y += 30;
+
+svg.setAttribute('height', y);
+svg.setAttribute('viewBox', `0 0 ${W} ${y}`);
+document.title = 'H=' + y;
+</script>
+</body></html>
