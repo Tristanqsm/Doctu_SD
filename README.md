@@ -65,6 +65,8 @@ docker compose up --build -d
 
 ## 2. Arquitectura
 
+### 2.1 Diagrama de componentes y red
+
 ```mermaid
 flowchart LR
     U[Navegador] -->|HTTP :3000| FE[frontend<br/>SPA en Nginx]
@@ -95,6 +97,97 @@ Solo se publican los puertos **3000** (frontend) y **8080** (gateway). Los servi
 | **Réplicas** | `docker-compose.yml` → `deploy.replicas: 2` | El servicio replicado es **expedientes**, que concentra las consultas de historiales. |
 | **Datos** | Una base por servicio (*Database per Service*) | `usuarios` y `agenda` usan SQLite en volúmenes propios. `expedientes` usa **PostgreSQL**, porque sus réplicas necesitan ver los mismos datos (con SQLite cada contenedor tendría su propio archivo). No hay llaves foráneas entre bases: los servicios se refieren a otras entidades solo por ID. |
 | **Autenticación** | `usuarios` emite el JWT y cada servicio lo verifica | Sin sesiones en memoria, por eso cualquier réplica puede atender cualquier petición. |
+
+---
+
+### 2.2 Diagrama funcional: flujos de punta a punta
+
+Este diagrama ilustra los flujos funcionales del sistema desde la interacción del usuario en la SPA hasta la persistencia y coordinación distribuida entre microservicios:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor P as Paciente
+    actor M as Médico
+    participant FE as Frontend (SPA :3000)
+    participant GW as API Gateway (:8080)
+    participant US as servicio-usuarios (:3001)
+    participant AG as servicio-agenda (:3002)
+    participant EX as servicio-expedientes (:3003)
+    participant PG as PostgreSQL (expedientes)
+
+    %% Flujo 1: Autenticación
+    rect rgb(240, 249, 255)
+    note over P,US: 1. Autenticación y Autorización JWT
+    P->>FE: Ingresa credenciales (email y password)
+    FE->>GW: POST /api/usuarios/login
+    GW->>US: Proxy a servicio-usuarios
+    US->>US: Valida credenciales contra usuarios.db
+    US-->>GW: 200 OK + JWT {id, rol, email}
+    GW-->>FE: 200 OK + JWT
+    FE->>FE: Almacena token en sessionStorage
+    end
+
+    %% Flujo 2: Agendamiento de Citas con Idempotencia
+    rect rgb(245, 243, 255)
+    note over P,AG: 2. Agendamiento de Citas con Idempotency-Key
+    P->>FE: Selecciona médico, fecha y motivo ("Agendar")
+    FE->>FE: Genera Idempotency-Key (UUID v4)
+    FE->>GW: POST /api/agenda/citas [Header: Idempotency-Key]
+    GW->>AG: Proxy con timeout 3s y circuit breaker
+    AG->>AG: Inserta cita en agenda.db (UNIQUE idempotency_key)
+    AG-->>GW: 201 Created (o 200 si es reintento con la misma clave)
+    GW-->>FE: 201 Created (Cita en estado "Pendiente")
+    end
+
+    %% Flujo 3: Registro de Expediente con Outbox
+    rect rgb(240, 253, 244)
+    note over M,PG: 3. Consulta Médica y Outbox Transaccional
+    M->>FE: Registra diagnóstico, signos vitales y receta
+    FE->>FE: Genera Idempotency-Key
+    FE->>GW: POST /api/expedientes/expedientes [Header: Idempotency-Key]
+    GW->>GW: Balanceador Round-Robin elige réplica sana
+    GW->>EX: Reenvía petición a la réplica activa
+    EX->>PG: Transacción ACID local:<br/>a) INSERT INTO expedientes<br/>b) INSERT INTO outbox (PENDIENTE)
+    PG-->>EX: Transacción confirmada (COMMIT)
+    EX-->>GW: 201 Created [Header: X-Served-By: hostname]
+    GW-->>FE: 201 Created (Expediente consolidado)
+    end
+
+    %% Flujo 4: Consistencia Asíncrona Outbox
+    rect rgb(255, 247, 237)
+    note over EX,AG: 4. Consistencia Asíncrona (Outbox Worker)
+    loop Cada 5 segundos en background (cada réplica)
+        EX->>PG: SELECT outbox FOR UPDATE SKIP LOCKED
+        EX->>AG: POST /citas/:id/estado { estado: "Atendida" }
+        AG-->>EX: 200 OK (Cita actualizada a Atendida)
+        EX->>PG: UPDATE outbox SET estado = 'PROCESADO'
+    end
+    end
+
+    %% Flujo 5: Consulta con Balanceo Round-Robin
+    rect rgb(248, 250, 252)
+    note over P,EX: 5. Consulta de Historiales con Balanceo y Failover
+    P->>FE: Consulta sus recetas y expedientes
+    FE->>GW: GET /api/expedientes/pacientes/:id
+    GW->>GW: Reparte por turnos entre Réplica 1 y Réplica 2
+    GW->>EX: Consulta réplica asignada
+    EX->>PG: SELECT * FROM expedientes WHERE id_paciente = :id
+    PG-->>EX: Registros clínicos
+    EX-->>GW: 200 OK [Header: X-Served-By]
+    GW-->>FE: 200 OK (Renderizado en SPA)
+    end
+```
+
+#### Descripción de los pasos funcionales:
+
+| Flujo | Acción del usuario | Componentes involucrados | Mecanismo aplicado |
+| :--- | :--- | :--- | :--- |
+| **1. Autenticación** | Inicia sesión con su rol (`médico` o `paciente`). | Frontend &rarr; Gateway &rarr; `servicio-usuarios` &rarr; SQLite | Emisión de token JWT sin sesiones en memoria. |
+| **2. Agendar Cita** | Paciente selecciona médico, fecha y motivo. | Frontend &rarr; Gateway &rarr; `servicio-agenda` &rarr; SQLite | Cabecera `Idempotency-Key` con restricción `UNIQUE` en base de datos. Si el cliente reintenta tras timeout, devuelve el registro existente sin duplicar. |
+| **3. Consulta Médica** | Médico captura signos vitales, diagnóstico y receta. | Frontend &rarr; Gateway &rarr; `servicio-expedientes` &rarr; PostgreSQL | **Outbox Transaccional:** se inserta el expediente y el evento `PENDIENTE` en la misma transacción local ACID. Respuesta inmediata 201 con cabecera `X-Served-By`. |
+| **4. Consistencia Outbox** | Automático en segundo plano. | Worker de expedientes &rarr; PostgreSQL &rarr; `servicio-agenda` &rarr; SQLite | **Consistencia Eventual:** Worker toma eventos con `SELECT FOR UPDATE SKIP LOCKED`, llama a agenda para marcar la cita como `Atendida` y actualiza el evento a `PROCESADO`. Si agenda está caída, reintenta hasta que vuelva a operar. |
+| **5. Consulta de Historial** | Médico o paciente consulta expedientes clínicos. | Frontend &rarr; Gateway &rarr; Réplicas de expedientes &rarr; PostgreSQL | **Balanceo Round-Robin:** el Gateway consulta el DNS de Docker y realiza health checks activos (`GET /health`), repartiendo peticiones entre réplicas sanas con failover automático. |
 
 ---
 
