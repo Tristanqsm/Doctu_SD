@@ -103,6 +103,16 @@ function bindCardGlow() {
   });
 }
 
+// Llave de idempotencia: se genera UNA vez al abrir un formulario y se reusa en cada
+// envío de ese formulario. Si la respuesta se pierde o el usuario da doble clic, el
+// servidor reconoce la llave y regresa el registro original en vez de duplicarlo.
+function nuevaIdempotencyKey() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return window.crypto.randomUUID();
+  }
+  return 'k-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+}
+
 async function request(path, options) {
   const opts = options || {};
   const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
@@ -165,8 +175,12 @@ const api = {
   getCitaPorId: function (id) {
     return request('/agenda/citas/' + id);
   },
-  crearCita: function (payload) {
-    return request('/agenda/citas', { method: 'POST', body: JSON.stringify(payload) });
+  crearCita: function (payload, idempotencyKey) {
+    return request('/agenda/citas', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}
+    });
   },
   actualizarEstadoCita: function (id, estado) {
     return request('/agenda/citas/' + id + '/estado', {
@@ -183,8 +197,12 @@ const api = {
   getExpedientePorId: function (id) {
     return request('/expedientes/expedientes/' + id);
   },
-  crearExpediente: function (payload) {
-    return request('/expedientes/expedientes', { method: 'POST', body: JSON.stringify(payload) });
+  crearExpediente: function (payload, idempotencyKey) {
+    return request('/expedientes/expedientes', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}
+    });
   }
 };
 
@@ -949,6 +967,7 @@ async function renderNuevaCita(params) {
       '</div>' +
       '</div>';
 
+    const idempotencyKeyCita = nuevaIdempotencyKey();
     document.getElementById('form-nueva-cita').addEventListener('submit', async function (e) {
       e.preventDefault();
       const form = e.target;
@@ -966,7 +985,7 @@ async function renderNuevaCita(params) {
       }
 
       try {
-        await api.crearCita(payload);
+        await api.crearCita(payload, idempotencyKeyCita);
         showToast('Cita agendada correctamente.', 'alert-success');
         navigate(volverHref);
       } catch (err) {
@@ -1072,6 +1091,7 @@ async function renderNuevoExpediente(params) {
       '</div>' +
       '</div>';
 
+    const idempotencyKeyExpediente = nuevaIdempotencyKey();
     document.getElementById('form-nuevo-expediente').addEventListener('submit', async function (e) {
       e.preventDefault();
       const form = e.target;
@@ -1090,7 +1110,7 @@ async function renderNuevoExpediente(params) {
       };
 
       try {
-        const res = await api.crearExpediente(payload);
+        const res = await api.crearExpediente(payload, idempotencyKeyExpediente);
         showToast(
           res.advertencia_agenda
             ? 'Expediente guardado. Aviso: ' + res.advertencia_agenda
