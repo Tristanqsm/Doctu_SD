@@ -66,10 +66,21 @@ services:
       timeout: 3s
       retries: 10
 
+  # Servicio replicado: 2 copias detrás del balanceador del gateway. Docker Compose
+  # registra ambas bajo el mismo nombre en su DNS interno (servicio-expedientes ->
+  # 2 IPs). Por eso no lleva container_name ni ports (chocarían entre réplicas).
   # Sin bind mount del código: cada réplica corre exactamente la imagen construida
   # (evita node_modules viejos en volúmenes anónimos al agregar dependencias).
   servicio-expedientes:
     build: ./expedientes
+    deploy:
+      replicas: 2
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3003/health > /dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     depends_on:
       postgres-expedientes:
         condition: service_healthy
