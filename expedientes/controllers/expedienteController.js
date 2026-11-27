@@ -130,24 +130,6 @@ async function postNuevoExpediente(req, res) {
     notas
   } = req.body;
 
-  // 1. Verificar idempotencia antes de insertar
-  if (idempotencyKey) {
-    try {
-      const existente = await buscarPorIdempotencyKey(idempotencyKey);
-      if (existente) {
-        console.log(`[Idempotencia] Reintento detectado para key="${idempotencyKey}" -> devolviendo expediente #${existente.id}`);
-        return res.status(200).json({
-          mensaje: 'Expediente recuperado por idempotencia (no se creó duplicado)',
-          idempotente: true,
-          expediente: existente
-        });
-      }
-    } catch (err) {
-      console.error('Error verificando idempotencia:', err);
-      return res.status(500).json({ error: 'Internal Server Error', mensaje: err.message });
-    }
-  }
-
   if (!id_paciente || !motivo_consulta || !diagnostico || !tratamiento_receta) {
     return res.status(400).json({
       error: 'Bad Request',
@@ -160,7 +142,17 @@ async function postNuevoExpediente(req, res) {
   const citaIdNum = id_cita ? Number(id_cita) : null;
   const fechaFinal = fecha || new Date().toISOString().split('T')[0];
 
-  // 2. Transacción atómica: guardar expediente + registrar evento en tabla outbox
+  /*
+   * 1. Transacción atómica: expediente + evento en la tabla outbox.
+   *
+   * Idempotencia con un solo INSERT ... ON CONFLICT (idempotency_key) DO NOTHING:
+   *  - No se hace "consultar y luego insertar": entre ambas consultas otra réplica
+   *    podría insertar la misma llave.
+   *  - No se atrapa el error UNIQUE: en PostgreSQL ese error deja la transacción
+   *    abortada (y con ella el INSERT del outbox).
+   * Si la llave ya existía, el INSERT no regresa filas: se deshace la transacción
+   * (no se encola otro evento) y se responde con el expediente original.
+   */
   let client = null;
   try {
     client = await pool.connect();
@@ -173,6 +165,7 @@ async function postNuevoExpediente(req, res) {
         diagnostico, tratamiento_receta, notas
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ON CONFLICT (idempotency_key) DO NOTHING
       RETURNING *`,
       [
         Number(id_paciente),
@@ -190,6 +183,19 @@ async function postNuevoExpediente(req, res) {
         notas ? notas.trim() : null
       ]
     );
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      const existente = await buscarPorIdempotencyKey(idempotencyKey);
+      if (!existente) {
+        return res.status(409).json({ error: 'Conflict', mensaje: 'Idempotency-Key en uso; reintenta.' });
+      }
+      console.log(`[Idempotencia] Reintento detectado para key="${idempotencyKey}" -> devolviendo expediente #${existente.id}`);
+      return res.status(200).json({
+        mensaje: 'Expediente recuperado por idempotencia (no se creó duplicado)',
+        idempotente: true,
+        expediente: existente
+      });
+    }
     expedienteCreado = rows[0];
 
     if (citaIdNum) {
@@ -219,19 +225,6 @@ async function postNuevoExpediente(req, res) {
   } catch (err) {
     if (client) await client.query('ROLLBACK').catch(() => {});
 
-    // Condición de carrera: dos peticiones con la misma llave llegaron al mismo tiempo
-    // (23505 = unique_violation en PostgreSQL)
-    if (idempotencyKey && err.code === '23505') {
-      const existente = await buscarPorIdempotencyKey(idempotencyKey).catch(() => null);
-      if (existente) {
-        return res.status(200).json({
-          mensaje: 'Expediente recuperado por idempotencia (no se creó duplicado)',
-          idempotente: true,
-          expediente: existente
-        });
-      }
-    }
-
     // Clase 22 = datos inválidos (ej. fecha mal formada): error del cliente, no del servidor
     if (err.code && err.code.startsWith('22')) {
       return res.status(400).json({ error: 'Bad Request', mensaje: err.message });
@@ -243,7 +236,7 @@ async function postNuevoExpediente(req, res) {
     if (client) client.release();
   }
 
-  // 3. Intento inmediato (si agenda está caída, el Outbox Worker lo reintentará cada 5s)
+  // 2. Intento inmediato (si agenda está caída, el Outbox Worker lo reintentará cada 5s)
   let citaActualizada = null;
   let advertenciaAgenda = null;
 
